@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Title, Button, FAB } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { Text, Card, Title, Button, FAB, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
 import { getWorkout, getWorkoutDates } from '../../services/storageService';
@@ -18,6 +18,7 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [workoutDates, setWorkoutDates] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load workout dates and selected day's workout
   useFocusEffect(
@@ -45,6 +46,8 @@ export default function WorkoutCalendarScreen({ navigation }) {
 
   const handleDateSelect = (dateString) => {
     setSelectedDate(dateString);
+    // Immediately navigate to WorkoutDayScreen when a date is tapped
+    navigation.navigate('WorkoutDay', { date: dateString });
   };
 
   const handleAddWorkout = () => {
@@ -55,17 +58,45 @@ export default function WorkoutCalendarScreen({ navigation }) {
     navigation.navigate('WorkoutDay', { date: selectedDate, workout: todayWorkout });
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {/* Title Header */}
+      <View style={styles.header}>
+        <Title style={styles.headerTitle}>Workout Calendar</Title>
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#00ff88"
+            colors={['#00ff88']}
+          />
+        }
+      >
         {/* Calendar Component */}
         <View style={styles.calendarContainer}>
-          <Calendar
-            theme="dark"
-            markedDates={workoutDates}
-            selectedDate={selectedDate}
-            onDateSelect={handleDateSelect}
-          />
+          {loading && workoutDates.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#00ff88" />
+              <Text style={styles.loadingText}>Loading workouts...</Text>
+            </View>
+          ) : (
+            <Calendar
+              theme="dark"
+              markedDates={workoutDates}
+              selectedDate={selectedDate}
+              onDateSelect={handleDateSelect}
+            />
+          )}
         </View>
 
         {/* Workout Summary Card */}
@@ -140,12 +171,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1a1a1a',
   },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#1a1a1a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
   scrollContent: {
     padding: 16,
     paddingBottom: 80,
   },
   calendarContainer: {
     marginBottom: 16,
+    minHeight: 100,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    color: '#999999',
+    fontSize: 14,
+    marginTop: 12,
   },
   summaryCard: {
     marginBottom: 16,
@@ -167,10 +222,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
-  },
-  loadingText: {
-    color: '#999999',
-    fontSize: 14,
   },
   noWorkoutText: {
     color: '#999999',

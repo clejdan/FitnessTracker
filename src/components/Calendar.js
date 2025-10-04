@@ -216,7 +216,7 @@ export default function Calendar({
             >
               <Ionicons name="today-outline" size={20} color={colors.arrow} />
               <Text style={[styles.todayButtonText, { color: colors.arrow }]}>
-                Today
+                Jump to Today
               </Text>
             </TouchableOpacity>
 
