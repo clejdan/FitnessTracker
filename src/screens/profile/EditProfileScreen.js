@@ -45,7 +45,11 @@ export default function EditProfileScreen({ navigation, route }) {
 
   // Load existing profile data if editing
   useEffect(() => {
+    console.log('EditProfileScreen - editMode:', editMode);
+    console.log('EditProfileScreen - profileData:', profileData);
+    
     if (editMode && profileData) {
+      console.log('Loading existing profile data...');
       setHeightValue(profileData.height?.value?.toString() || '');
       setHeightUnit(profileData.height?.unit || 'cm');
       setWeightValue(profileData.weight?.value?.toString() || '');
@@ -53,12 +57,16 @@ export default function EditProfileScreen({ navigation, route }) {
       setAge(profileData.age?.toString() || '');
       setGender(profileData.gender || '');
       setActivityLevel(profileData.activityLevel || '');
+      console.log('Profile data loaded successfully');
+    } else {
+      console.log('No profile data to load or not in edit mode');
     }
   }, [editMode, profileData]);
 
   // Calculate maintenance calories in real-time
   useEffect(() => {
     calculateMaintenance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heightValue, heightUnit, weightValue, weightUnit, age, gender, activityLevel]);
 
   const calculateMaintenance = () => {

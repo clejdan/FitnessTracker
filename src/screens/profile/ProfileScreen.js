@@ -142,7 +142,10 @@ export default function ProfileScreen({ navigation }) {
         </Text>
         <Button
           mode="contained"
-          onPress={() => navigation.navigate('EditProfile')}
+          onPress={() => navigation.navigate('EditProfile', { 
+            editMode: false, 
+            profileData: null 
+          })}
           style={styles.setupButton}
           contentStyle={styles.setupButtonContent}
           labelStyle={styles.setupButtonLabel}
@@ -164,7 +167,10 @@ export default function ProfileScreen({ navigation }) {
           <Title style={styles.sectionTitle}>Profile Information</Title>
           <Button
             mode="outlined"
-            onPress={() => navigation.navigate('EditProfile')}
+            onPress={() => navigation.navigate('EditProfile', { 
+              editMode: true, 
+              profileData: profile 
+            })}
             compact
             style={styles.editButton}
           >
