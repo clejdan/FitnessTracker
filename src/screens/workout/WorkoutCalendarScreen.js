@@ -6,8 +6,15 @@ import Calendar from '../../components/Calendar';
 import { getWorkout, getWorkoutDates } from '../../services/storageService';
 import { format } from 'date-fns';
 
+// Helper to get today's date without timezone issues
+const getTodayDateString = () => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  return format(today, 'yyyy-MM-dd');
+};
+
 export default function WorkoutCalendarScreen({ navigation }) {
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [workoutDates, setWorkoutDates] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [loading, setLoading] = useState(true);

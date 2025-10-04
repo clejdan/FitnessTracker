@@ -27,6 +27,12 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// Helper function to get today's date without timezone issues
+const getTodayDate = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+};
+
 export default function Calendar({ 
   markedDates = [], 
   onDateSelect, 
@@ -34,7 +40,7 @@ export default function Calendar({
   theme = 'light' 
 }) {
   const [selectedDateObj, setSelectedDateObj] = useState(
-    selectedDate ? (typeof selectedDate === 'string' ? parseISO(selectedDate) : selectedDate) : new Date()
+    selectedDate ? (typeof selectedDate === 'string' ? parseISO(selectedDate) : selectedDate) : getTodayDate()
   );
   const [modalVisible, setModalVisible] = useState(false);
   const [tempDate, setTempDate] = useState(selectedDateObj);
@@ -65,13 +71,13 @@ export default function Calendar({
     headerBg: '#ffffff',
     text: '#333333',
     textSecondary: '#999999',
-    arrow: '#4CAF50',
+    arrow: '#E53935',
     modalBg: '#ffffff',
     modalOverlay: 'rgba(0, 0, 0, 0.5)',
-    buttonBg: '#4CAF50',
+    buttonBg: '#E53935',
     buttonText: '#ffffff',
-    markedDot: '#4CAF50',
-    selectedBg: 'rgba(76, 175, 80, 0.1)',
+    markedDot: '#E53935',
+    selectedBg: 'rgba(229, 57, 53, 0.1)',
     borderColor: '#e0e0e0',
   };
 
@@ -94,8 +100,14 @@ export default function Calendar({
   };
 
   const handleToday = () => {
-    const today = new Date();
+    const today = getTodayDate();
+    console.log('Jump to Today clicked:', format(today, 'yyyy-MM-dd'));
     setTempDate(today);
+    setSelectedDateObj(today);
+    if (onDateSelect) {
+      onDateSelect(format(today, 'yyyy-MM-dd'));
+    }
+    setModalVisible(false);
   };
 
   const handleConfirmDate = () => {
@@ -204,7 +216,7 @@ export default function Calendar({
             >
               <Ionicons name="today-outline" size={20} color={colors.arrow} />
               <Text style={[styles.todayButtonText, { color: colors.arrow }]}>
-                Jump to Today
+                Today
               </Text>
             </TouchableOpacity>
 
