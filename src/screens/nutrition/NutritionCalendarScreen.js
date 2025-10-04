@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Title, Button, FAB } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { Text, Card, Title, Button, FAB, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
 import { getMeals, getMealDates, getDailyTotals, getCalorieGoal } from '../../services/storageService';
@@ -19,6 +19,7 @@ export default function NutritionCalendarScreen({ navigation }) {
   const [dailyTotals, setDailyTotals] = useState(null);
   const [calorieGoal, setCalorieGoal] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load meal dates and selected day's totals
   useFocusEffect(
@@ -50,6 +51,8 @@ export default function NutritionCalendarScreen({ navigation }) {
 
   const handleDateSelect = (dateString) => {
     setSelectedDate(dateString);
+    // Immediately navigate to NutritionDayScreen when a date is tapped
+    navigation.navigate('NutritionDay', { date: dateString });
   };
 
   const handleAddMeal = () => {
@@ -58,6 +61,12 @@ export default function NutritionCalendarScreen({ navigation }) {
 
   const handleViewDay = () => {
     navigation.navigate('NutritionDay', { date: selectedDate });
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
   const getCalorieProgress = () => {
@@ -72,15 +81,37 @@ export default function NutritionCalendarScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {/* Title Header */}
+      <View style={styles.header}>
+        <Title style={styles.headerTitle}>Nutrition Calendar</Title>
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#4CAF50"
+            colors={['#4CAF50']}
+          />
+        }
+      >
         {/* Calendar Component */}
         <View style={styles.calendarContainer}>
-          <Calendar
-            theme="light"
-            markedDates={mealDates}
-            selectedDate={selectedDate}
-            onDateSelect={handleDateSelect}
-          />
+          {loading && mealDates.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>Loading meals...</Text>
+            </View>
+          ) : (
+            <Calendar
+              theme="light"
+              markedDates={mealDates}
+              selectedDate={selectedDate}
+              onDateSelect={handleDateSelect}
+            />
+          )}
         </View>
 
         {/* Calorie Summary Card */}
@@ -197,7 +228,20 @@ export default function NutritionCalendarScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  headerTitle: {
+    color: '#333333',
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   scrollContent: {
     padding: 16,
@@ -205,6 +249,12 @@ const styles = StyleSheet.create({
   },
   calendarContainer: {
     marginBottom: 16,
+    minHeight: 100,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
   summaryCard: {
     marginBottom: 16,

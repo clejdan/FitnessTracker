@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
+import uuid from 'react-native-uuid';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -50,7 +50,7 @@ const formatDate = (date) => {
 export const saveWorkout = async (date, workoutData) => {
   try {
     const formattedDate = formatDate(date);
-    const workoutId = uuidv4();
+    const workoutId = uuid.v4();
     
     const workout = {
       id: workoutId,
@@ -204,7 +204,7 @@ export const getWorkoutDates = async () => {
 export const saveMeal = async (date, mealData) => {
   try {
     const formattedDate = formatDate(date);
-    const mealId = uuidv4();
+    const mealId = uuid.v4();
     
     const meal = {
       id: mealId,
