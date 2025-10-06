@@ -22,6 +22,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import uuid from 'react-native-uuid';
 import { saveWorkout, updateWorkout } from '../../services/storageService';
+import { showSuccessToast, showErrorToast } from '../../utils/toast';
 
 export default function AddWorkoutScreen({ route, navigation }) {
   const { date, editMode = false, workoutData = null } = route?.params || {};
@@ -113,7 +114,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
 
   const handleSave = async () => {
     if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fill in the exercise name');
+      showErrorToast('Please fill in the exercise name');
       return;
     }
 
@@ -144,24 +145,19 @@ export default function AddWorkoutScreen({ route, navigation }) {
       if (editMode && workoutData?.id) {
         await updateWorkout(date, workoutData.id, workout);
         console.log('Workout updated:', workout);
+        showSuccessToast(`${exerciseName} updated successfully!`, () => {
+          navigation.navigate('WorkoutDay', { date });
+        });
       } else {
         await saveWorkout(date, workout);
         console.log('Workout saved:', workout);
+        showSuccessToast(`${exerciseName} saved successfully!`, () => {
+          navigation.navigate('WorkoutDay', { date });
+        });
       }
-
-      Alert.alert(
-        'Success',
-        `Workout ${editMode ? 'updated' : 'saved'} successfully!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('WorkoutDay', { date })
-          }
-        ]
-      );
     } catch (error) {
       console.error('Error saving workout:', error);
-      Alert.alert('Error', 'Failed to save workout. Please try again.');
+      showErrorToast('Failed to save workout. Please try again.');
     } finally {
       setSaving(false);
     }

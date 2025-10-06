@@ -19,8 +19,11 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays, subDays } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
 import { getMeals, deleteMeal, getDailyTotals, getCalorieGoal } from '../../services/storageService';
+import { showSuccessToast, showErrorToast, showConfirmDialog } from '../../utils/toast';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 export default function NutritionDayScreen({ route, navigation }) {
   const { date } = route.params;
@@ -32,9 +35,11 @@ export default function NutritionDayScreen({ route, navigation }) {
   const [mealToDelete, setMealToDelete] = useState(null);
   const [progressAnim] = useState(new Animated.Value(0));
 
-  useEffect(() => {
-    loadNutritionData();
-  }, [date]);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadNutritionData();
+    }, [date])
+  );
 
   useEffect(() => {
     // Animate progress bar when totals change
@@ -65,6 +70,7 @@ export default function NutritionDayScreen({ route, navigation }) {
       console.log('Loaded nutrition for', date, ':', { mealsData, totals, goal });
     } catch (error) {
       console.error('Error loading nutrition data:', error);
+      showErrorToast('Failed to load nutrition data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -72,6 +78,27 @@ export default function NutritionDayScreen({ route, navigation }) {
 
   const handleAddMeal = () => {
     navigation.navigate('AddMeal', { date });
+  };
+
+  const navigateToPreviousDay = () => {
+    const previousDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+    navigation.push('NutritionDay', { date: previousDate });
+  };
+
+  const navigateToNextDay = () => {
+    const nextDate = format(addDays(parseISO(date), 1), 'yyyy-MM-dd');
+    navigation.push('NutritionDay', { date: nextDate });
+  };
+
+  const navigateToToday = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (today !== date) {
+      navigation.push('NutritionDay', { date: today });
+    }
+  };
+
+  const isToday = () => {
+    return date === format(new Date(), 'yyyy-MM-dd');
   };
 
   const handleEditMeal = (meal) => {
@@ -91,13 +118,15 @@ export default function NutritionDayScreen({ route, navigation }) {
     try {
       if (mealToDelete) {
         await deleteMeal(date, mealToDelete.id);
+        showSuccessToast(`${mealToDelete.mealName} deleted successfully`);
         await loadNutritionData(); // Refresh data
         setDeleteDialogVisible(false);
         setMealToDelete(null);
       }
     } catch (error) {
       console.error('Error deleting meal:', error);
-      Alert.alert('Error', 'Failed to delete meal');
+      showErrorToast('Failed to delete meal. Please try again.');
+      setDeleteDialogVisible(false);
     }
   };
 
@@ -338,10 +367,12 @@ export default function NutritionDayScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Loading nutrition data...</Text>
-        </View>
+        <LoadingSpinner 
+          message="Loading nutrition data..." 
+          fullScreen={true}
+          theme="light"
+          color="#4CAF50"
+        />
       </View>
     );
   }
@@ -358,7 +389,30 @@ export default function NutritionDayScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           />
-          <Title style={styles.dateTitle}>{getFormattedDate()}</Title>
+          <View style={styles.dateNavigationContainer}>
+            <IconButton
+              icon="chevron-left"
+              iconColor="#4CAF50"
+              size={24}
+              onPress={navigateToPreviousDay}
+              style={styles.dateNavButton}
+            />
+            <View style={styles.dateTitleContainer}>
+              <Title style={styles.dateTitle}>{getFormattedDate()}</Title>
+              {!isToday() && (
+                <TouchableOpacity onPress={navigateToToday} style={styles.todayButton}>
+                  <Text style={styles.todayButtonText}>Today</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <IconButton
+              icon="chevron-right"
+              iconColor="#4CAF50"
+              size={24}
+              onPress={navigateToNextDay}
+              style={styles.dateNavButton}
+            />
+          </View>
         </View>
       </View>
 
@@ -435,11 +489,36 @@ const styles = StyleSheet.create({
     margin: 0,
     marginLeft: -8,
   },
+  dateNavigationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  dateNavButton: {
+    margin: 0,
+  },
+  dateTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
   dateTitle: {
     color: '#333333',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    flex: 1,
+    textAlign: 'center',
+  },
+  todayButton: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+  },
+  todayButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,

@@ -25,6 +25,7 @@ import uuid from 'react-native-uuid';
 import { format } from 'date-fns';
 import { saveMeal, updateMeal } from '../../services/storageService';
 import { calculateCalories, convertToGrams } from '../../utils/unitConversions';
+import { showSuccessToast, showErrorToast, showConfirmDialog } from '../../utils/toast';
 
 const MEAL_SUGGESTIONS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-Workout', 'Post-Workout'];
 
@@ -164,10 +165,27 @@ export default function AddMealScreen({ route, navigation }) {
     });
 
     if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fix the errors before saving');
+      showErrorToast('Please fix the validation errors before saving');
       return;
     }
 
+    // Validate calorie range (reasonable limits)
+    if (calculatedCalories > 5000) {
+      showConfirmDialog(
+        'High Calorie Count',
+        `This meal has ${calculatedCalories} calories, which seems unusually high. Are you sure?`,
+        () => performSave(),
+        null,
+        'Yes, Save',
+        'Cancel'
+      );
+      return;
+    }
+
+    await performSave();
+  };
+
+  const performSave = async () => {
     setSaving(true);
 
     try {
@@ -209,24 +227,19 @@ export default function AddMealScreen({ route, navigation }) {
       if (editMode && mealData?.id) {
         await updateMeal(date, mealData.id, meal);
         console.log('Meal updated:', meal);
+        showSuccessToast(`${mealName} updated successfully!`, () => {
+          navigation.navigate('NutritionDay', { date });
+        });
       } else {
         await saveMeal(date, meal);
         console.log('Meal saved:', meal);
+        showSuccessToast(`${mealName} saved successfully!`, () => {
+          navigation.navigate('NutritionDay', { date });
+        });
       }
-
-      Alert.alert(
-        'Success',
-        `Meal ${editMode ? 'updated' : 'saved'} successfully!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('NutritionDay', { date })
-          }
-        ]
-      );
     } catch (error) {
       console.error('Error saving meal:', error);
-      Alert.alert('Error', 'Failed to save meal. Please try again.');
+      showErrorToast('Failed to save meal. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -9,6 +9,9 @@ import {
   convertCmToInches,
   getActivityLevelDescription 
 } from '../../utils/calorieCalculations';
+import { showErrorToast, showSuccessToast } from '../../utils/toast';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import { exportAllData, getDataStats } from '../../utils/dataExport';
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -16,6 +19,8 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [weightUnit, setWeightUnit] = useState('kg'); // 'kg' or 'lbs'
   const [heightUnit, setHeightUnit] = useState('cm'); // 'cm' or 'inches'
+  const [dataStats, setDataStats] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // Load data when screen comes into focus
   useFocusEffect(
@@ -27,13 +32,15 @@ export default function ProfileScreen({ navigation }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [profileData, goalData] = await Promise.all([
+      const [profileData, goalData, stats] = await Promise.all([
         getProfile(),
         getCalorieGoal(),
+        getDataStats(),
       ]);
       
       setProfile(profileData);
       setCalorieGoal(goalData);
+      setDataStats(stats);
       
       // Set initial unit preferences from profile
       if (profileData) {
@@ -42,8 +49,22 @@ export default function ProfileScreen({ navigation }) {
       }
     } catch (error) {
       console.error('Error loading profile data:', error);
+      showErrorToast('Failed to load profile data. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      await exportAllData();
+      showSuccessToast('Data exported successfully!');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      showErrorToast('Failed to export data. Please try again.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -122,8 +143,12 @@ export default function ProfileScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+        <LoadingSpinner 
+          message="Loading profile..." 
+          fullScreen={true}
+          theme="light"
+          color="#2196F3"
+        />
       </View>
     );
   }
@@ -350,6 +375,62 @@ export default function ProfileScreen({ navigation }) {
           </Card>
         )}
       </View>
+
+      {/* Data Management Section */}
+      <View style={styles.section}>
+        <Title style={styles.sectionTitle}>Data Management</Title>
+        
+        {dataStats && (
+          <Card style={styles.statsCard}>
+            <Card.Content>
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <Ionicons name="barbell-outline" size={32} color="#00ff88" />
+                  <Text style={styles.statValue}>{dataStats.totalWorkouts}</Text>
+                  <Text style={styles.statLabel}>Total Workouts</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Ionicons name="calendar-outline" size={32} color="#00ff88" />
+                  <Text style={styles.statValue}>{dataStats.workoutDays}</Text>
+                  <Text style={styles.statLabel}>Workout Days</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Ionicons name="restaurant-outline" size={32} color="#4CAF50" />
+                  <Text style={styles.statValue}>{dataStats.totalMeals}</Text>
+                  <Text style={styles.statLabel}>Total Meals</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Ionicons name="nutrition-outline" size={32} color="#4CAF50" />
+                  <Text style={styles.statValue}>{dataStats.mealDays}</Text>
+                  <Text style={styles.statLabel}>Meal Days</Text>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        )}
+
+        <Card style={styles.exportCard}>
+          <Card.Content>
+            <View style={styles.exportInfo}>
+              <Ionicons name="cloud-download-outline" size={48} color="#2196F3" />
+              <Text style={styles.exportTitle}>Export Your Data</Text>
+              <Text style={styles.exportText}>
+                Download a backup of all your workouts, meals, and profile data as JSON.
+              </Text>
+            </View>
+            <Button
+              mode="contained"
+              onPress={handleExportData}
+              loading={exporting}
+              disabled={exporting}
+              style={styles.exportButton}
+              icon="download"
+            >
+              {exporting ? 'Exporting...' : 'Export Data'}
+            </Button>
+          </Card.Content>
+        </Card>
+      </View>
     </ScrollView>
   );
 }
@@ -568,6 +649,57 @@ const styles = StyleSheet.create({
   },
   setGoalButton: {
     marginTop: 8,
+    backgroundColor: '#2196F3',
+  },
+  statsCard: {
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    elevation: 2,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+    width: '45%',
+    marginBottom: 16,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#999999',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  exportCard: {
+    backgroundColor: '#ffffff',
+    elevation: 2,
+  },
+  exportInfo: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  exportTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  exportText: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  exportButton: {
     backgroundColor: '#2196F3',
   },
 });

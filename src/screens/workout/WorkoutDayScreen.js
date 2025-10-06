@@ -19,8 +19,11 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays, subDays } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
 import { getWorkout, deleteWorkout } from '../../services/storageService';
+import { showSuccessToast, showErrorToast } from '../../utils/toast';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 export default function WorkoutDayScreen({ route, navigation }) {
   const { date } = route.params;
@@ -30,9 +33,11 @@ export default function WorkoutDayScreen({ route, navigation }) {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [exerciseToDelete, setExerciseToDelete] = useState(null);
 
-  useEffect(() => {
-    loadWorkoutData();
-  }, [date]);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadWorkoutData();
+    }, [date])
+  );
 
   const loadWorkoutData = async () => {
     setLoading(true);
@@ -42,6 +47,7 @@ export default function WorkoutDayScreen({ route, navigation }) {
       console.log('Loaded workout for', date, ':', workoutData);
     } catch (error) {
       console.error('Error loading workout:', error);
+      showErrorToast('Failed to load workout data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -56,6 +62,27 @@ export default function WorkoutDayScreen({ route, navigation }) {
 
   const handleAddWorkout = () => {
     navigation.navigate('AddWorkout', { date });
+  };
+
+  const navigateToPreviousDay = () => {
+    const previousDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+    navigation.push('WorkoutDay', { date: previousDate });
+  };
+
+  const navigateToNextDay = () => {
+    const nextDate = format(addDays(parseISO(date), 1), 'yyyy-MM-dd');
+    navigation.push('WorkoutDay', { date: nextDate });
+  };
+
+  const navigateToToday = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (today !== date) {
+      navigation.push('WorkoutDay', { date: today });
+    }
+  };
+
+  const isToday = () => {
+    return date === format(new Date(), 'yyyy-MM-dd');
   };
 
   const handleEditWorkout = () => {
@@ -83,9 +110,7 @@ export default function WorkoutDayScreen({ route, navigation }) {
           // If no exercises left, delete the entire workout
           await deleteWorkout(date, workout.id);
           setWorkout(null);
-          Alert.alert('Success', 'Workout deleted successfully', [
-            { text: 'OK', onPress: () => navigation.goBack() }
-          ]);
+          showSuccessToast('Workout deleted successfully', () => navigation.goBack());
         } else {
           // Otherwise update the workout with remaining exercises
           const updatedWorkout = {
@@ -96,11 +121,12 @@ export default function WorkoutDayScreen({ route, navigation }) {
           // Note: You'll need to implement updateWorkout in storage service
           // For now, we'll just update local state
           setWorkout(updatedWorkout);
+          showSuccessToast('Exercise deleted successfully');
         }
       }
     } catch (error) {
       console.error('Error deleting exercise:', error);
-      Alert.alert('Error', 'Failed to delete exercise');
+      showErrorToast('Failed to delete exercise. Please try again.');
     } finally {
       setDeleteDialogVisible(false);
       setExerciseToDelete(null);
@@ -119,12 +145,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
           onPress: async () => {
             try {
               await deleteWorkout(date, workout.id);
-              Alert.alert('Success', 'Workout deleted successfully', [
-                { text: 'OK', onPress: () => navigation.goBack() }
-              ]);
+              showSuccessToast('Workout deleted successfully', () => navigation.goBack());
             } catch (error) {
               console.error('Error deleting workout:', error);
-              Alert.alert('Error', 'Failed to delete workout');
+              showErrorToast('Failed to delete workout. Please try again.');
             }
           }
         }
@@ -243,10 +267,12 @@ export default function WorkoutDayScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#00ff88" />
-          <Text style={styles.loadingText}>Loading workout...</Text>
-        </View>
+        <LoadingSpinner 
+          message="Loading workout..." 
+          fullScreen={true}
+          theme="dark"
+          color="#00ff88"
+        />
       </View>
     );
   }
@@ -263,7 +289,30 @@ export default function WorkoutDayScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           />
-          <Title style={styles.dateTitle}>{getFormattedDate()}</Title>
+          <View style={styles.dateNavigationContainer}>
+            <IconButton
+              icon="chevron-left"
+              iconColor="#00ff88"
+              size={24}
+              onPress={navigateToPreviousDay}
+              style={styles.dateNavButton}
+            />
+            <View style={styles.dateTitleContainer}>
+              <Title style={styles.dateTitle}>{getFormattedDate()}</Title>
+              {!isToday() && (
+                <TouchableOpacity onPress={navigateToToday} style={styles.todayButton}>
+                  <Text style={styles.todayButtonText}>Today</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <IconButton
+              icon="chevron-right"
+              iconColor="#00ff88"
+              size={24}
+              onPress={navigateToNextDay}
+              style={styles.dateNavButton}
+            />
+          </View>
         </View>
         {workout && (
           <View style={styles.headerActions}>
@@ -362,11 +411,36 @@ const styles = StyleSheet.create({
     margin: 0,
     marginLeft: -8,
   },
+  dateNavigationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  dateNavButton: {
+    margin: 0,
+  },
+  dateTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
   dateTitle: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    flex: 1,
+    textAlign: 'center',
+  },
+  todayButton: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#00ff88',
+    borderRadius: 12,
+  },
+  todayButtonText: {
+    color: '#1a1a1a',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   headerActions: {
     flexDirection: 'row',

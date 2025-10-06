@@ -364,17 +364,23 @@ export const getDailyTotals = async (date) => {
     
     const totals = {
       calories: 0,
-      protein: { value: 0, unit: 'g' },
-      carbs: { value: 0, unit: 'g' },
-      fats: { value: 0, unit: 'g' },
+      protein: 0,
+      carbs: 0,
+      fats: 0,
     };
     
     meals.forEach(meal => {
       totals.calories += meal.calories || 0;
-      totals.protein.value += meal.protein?.value || 0;
-      totals.carbs.value += meal.carbs?.value || 0;
-      totals.fats.value += meal.fats?.value || 0;
+      totals.protein += meal.protein?.value || 0;
+      totals.carbs += meal.carbs?.value || 0;
+      totals.fats += meal.fats?.value || 0;
     });
+    
+    // Round to 1 decimal place for display
+    totals.protein = Math.round(totals.protein * 10) / 10;
+    totals.carbs = Math.round(totals.carbs * 10) / 10;
+    totals.fats = Math.round(totals.fats * 10) / 10;
+    totals.calories = Math.round(totals.calories);
     
     return totals;
   } catch (error) {
