@@ -570,7 +570,12 @@ const styles = StyleSheet.create({
   goalCard: {
     marginVertical: 8,
     backgroundColor: '#ffffff',
-    elevation: 4,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    borderRadius: 12,
   },
   goalHeader: {
     flexDirection: 'row',
@@ -628,7 +633,12 @@ const styles = StyleSheet.create({
   noGoalCard: {
     marginVertical: 8,
     backgroundColor: '#ffffff',
-    elevation: 2,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    borderRadius: 12,
   },
   noGoalContent: {
     alignItems: 'center',
@@ -650,11 +660,21 @@ const styles = StyleSheet.create({
   setGoalButton: {
     marginTop: 8,
     backgroundColor: '#2196F3',
+    elevation: 4,
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   statsCard: {
     backgroundColor: '#ffffff',
     marginBottom: 16,
-    elevation: 2,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    borderRadius: 12,
   },
   statsGrid: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
 import { getWorkout, getWorkoutDates } from '../../services/storageService';
 import { format } from 'date-fns';
+import { hapticDateSelect, hapticButtonPress, hapticFAB } from '../../utils/haptics';
 
 // Helper to get today's date without timezone issues
 const getTodayDateString = () => {
@@ -20,17 +21,24 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Load workout dates and selected day's workout
+  // Load workout dates when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      // Reset to today's date when screen comes into focus
+      // Only reset to today's date when screen comes into focus from another screen
       const today = getTodayDateString();
-      if (selectedDate !== today) {
+      if (!selectedDate) {
         setSelectedDate(today);
       }
       loadData();
-    }, [selectedDate])
+    }, []) // No dependencies to prevent reset on arrow navigation
   );
+
+  // Load workout data when selectedDate changes
+  useEffect(() => {
+    if (selectedDate) {
+      loadData();
+    }
+  }, [selectedDate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -61,15 +69,24 @@ export default function WorkoutCalendarScreen({ navigation }) {
 
   const handleDateSelect = (dateString) => {
     setSelectedDate(dateString);
-    // Immediately navigate to WorkoutDayScreen when a date is tapped
+    // Only navigate to WorkoutDayScreen when a date is tapped (not when using arrows)
+    // The Calendar component will call this for both arrow navigation and date tapping
+    // We need to distinguish between the two - for now, just update the selected date
+  };
+
+  const handleDateTap = (dateString) => {
+    // This will be called when user actually taps on a date
+    hapticDateSelect();
     navigation.navigate('WorkoutDay', { date: dateString });
   };
 
   const handleAddWorkout = () => {
+    hapticButtonPress();
     navigation.navigate('AddWorkout', { date: selectedDate });
   };
 
   const handleViewWorkout = () => {
+    hapticButtonPress();
     navigation.navigate('WorkoutDay', { date: selectedDate, workout: todayWorkout });
   };
 
@@ -110,6 +127,7 @@ export default function WorkoutCalendarScreen({ navigation }) {
               markedDates={workoutDates}
               selectedDate={selectedDate}
               onDateSelect={handleDateSelect}
+              onDateTap={handleDateTap}
             />
           )}
         </View>
@@ -179,7 +197,10 @@ export default function WorkoutCalendarScreen({ navigation }) {
         style={styles.fab}
         icon="plus"
         color="#1a1a1a"
-        onPress={handleAddWorkout}
+        onPress={() => {
+          hapticFAB();
+          handleAddWorkout();
+        }}
       />
     </View>
   );
@@ -224,7 +245,12 @@ const styles = StyleSheet.create({
   summaryCard: {
     marginBottom: 16,
     backgroundColor: '#2a2a2a',
-    elevation: 4,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderRadius: 12,
   },
   summaryTitle: {
     color: '#00ff88',
@@ -250,9 +276,19 @@ const styles = StyleSheet.create({
   viewButton: {
     backgroundColor: '#00ff88',
     marginTop: 8,
+    elevation: 4,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   addButton: {
     backgroundColor: '#00ff88',
+    elevation: 4,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   buttonLabel: {
     color: '#1a1a1a',
@@ -260,7 +296,12 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     backgroundColor: '#2a2a2a',
-    elevation: 4,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    borderRadius: 12,
   },
   statsTitle: {
     color: '#ffffff',
@@ -277,6 +318,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#00ff88',
+    elevation: 8,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
 });
 

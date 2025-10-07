@@ -641,6 +641,11 @@ const styles = StyleSheet.create({
   setGoalButton: {
     marginTop: 16,
     backgroundColor: '#FF9800',
+    elevation: 4,
+    shadowColor: '#FF9800',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   setGoalButtonLabel: {
     color: '#ffffff',
@@ -653,7 +658,12 @@ const styles = StyleSheet.create({
   macroCard: {
     flex: 1,
     backgroundColor: '#ffffff',
-    elevation: 2,
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderRadius: 8,
   },
   macroCardContent: {
     alignItems: 'center',
@@ -682,7 +692,12 @@ const styles = StyleSheet.create({
   mealCard: {
     backgroundColor: '#ffffff',
     marginBottom: 12,
-    elevation: 2,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    borderRadius: 12,
   },
   mealHeader: {
     flexDirection: 'row',

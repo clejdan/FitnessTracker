@@ -130,6 +130,51 @@ export const getAllWorkouts = async () => {
 };
 
 /**
+ * Clean up duplicate workouts - merge multiple workouts per date into one
+ * @returns {Promise<boolean>}
+ */
+export const deduplicateWorkouts = async () => {
+  try {
+    const workouts = await storageOperation('get', STORAGE_KEYS.WORKOUTS) || {};
+    let modified = false;
+    
+    // For each date, merge all workouts into one
+    Object.keys(workouts).forEach(date => {
+      const workoutsForDate = workouts[date];
+      if (workoutsForDate && workoutsForDate.length > 1) {
+        // Merge all exercises from all workouts
+        const allExercises = workoutsForDate.flatMap(w => w.exercises || []);
+        // Remove duplicate exercises by exerciseId
+        const uniqueExercises = allExercises.filter((exercise, index, self) =>
+          index === self.findIndex(e => e.exerciseId === exercise.exerciseId)
+        );
+        
+        // Keep the first workout, update its exercises
+        const mergedWorkout = {
+          ...workoutsForDate[0],
+          exercises: uniqueExercises,
+          updatedAt: new Date().toISOString(),
+        };
+        
+        workouts[date] = [mergedWorkout];
+        modified = true;
+        console.log(`Deduplicated ${workoutsForDate.length} workouts into 1 for ${date}`);
+      }
+    });
+    
+    if (modified) {
+      await storageOperation('set', STORAGE_KEYS.WORKOUTS, workouts);
+      console.log('Workout deduplication complete');
+    }
+    
+    return modified;
+  } catch (error) {
+    console.error('Error deduplicating workouts:', error);
+    throw error;
+  }
+};
+
+/**
  * Update a specific workout
  * @param {string|Date} date - Date in any valid format
  * @param {string} workoutId - ID of the workout to update

@@ -7,6 +7,7 @@ import {
   Platform,
   Alert,
   TouchableOpacity,
+  TextInput as RNTextInput,
 } from 'react-native';
 import {
   Text,
@@ -23,6 +24,18 @@ import { Picker } from '@react-native-picker/picker';
 import uuid from 'react-native-uuid';
 import { saveWorkout, updateWorkout } from '../../services/storageService';
 import { showSuccessToast, showErrorToast } from '../../utils/toast';
+import { 
+  hapticButtonPress, 
+  hapticPickerChange, 
+  hapticFormSubmit, 
+  hapticButton,
+  hapticInput,
+  hapticValidation,
+  hapticSuccess,
+  hapticError
+} from '../../utils/haptics';
+import { useFormValidation, ValidationRules } from '../../utils/formValidation';
+import { WorkoutDefaults, FormPersistence, ExerciseSuggestions } from '../../utils/smartDefaults';
 
 export default function AddWorkoutScreen({ route, navigation }) {
   const { date, editMode = false, workoutData = null } = route?.params || {};
@@ -43,7 +56,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
 
   // Form state
   const [exerciseName, setExerciseName] = useState('');
-  const [sets, setSets] = useState([{ setNumber: 1, reps: 10, rir: 2, weight: '' }]);
+  const [sets, setSets] = useState([{ setNumber: 1, reps: 1, rep: 2, weight: '' }]);
   const [weightUnit, setWeightUnit] = useState('lbs');
   const [saving, setSaving] = useState(false);
 
@@ -61,7 +74,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
         reps: set.reps || 10,
         rir: set.rir || 2,
         weight: set.weight?.toString() || '',
-      })) || [{ setNumber: 1, reps: 10, rir: 2, weight: '' }]);
+      })) || [{ setNumber: 1, reps: 1, rir: 2, weight: '' }]);
     }
   }, [editMode, workoutData]);
 
@@ -164,6 +177,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
   };
 
   const handleCancel = () => {
+    hapticButton();
     navigation.goBack();
   };
 
@@ -193,7 +207,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
               mode="outlined"
               label="Exercise Name"
               value={exerciseName}
-              onChangeText={setExerciseName}
+                        onChangeText={(text) => {
+                          hapticInput();
+                          setExerciseName(text);
+                        }}
               placeholder="e.g., Bench Press, Squat, Deadlift"
               style={styles.input}
               outlineColor="#555555"
@@ -217,7 +234,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
               <Text style={styles.sectionTitle}>Sets</Text>
               <Button
                 mode="contained"
-                onPress={addSet}
+                onPress={() => {
+                  hapticButtonPress();
+                  addSet();
+                }}
                 style={styles.addSetButton}
                 labelStyle={styles.addSetButtonLabel}
                 icon="plus"
@@ -237,7 +257,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
                       icon="close"
                       iconColor="#ff5252"
                       size={20}
-                      onPress={() => removeSet(index)}
+                      onPress={() => {
+                  hapticButtonPress();
+                  removeSet(index);
+                }}
                       style={styles.removeSetButton}
                     />
                   )}
@@ -253,7 +276,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
                     >
                       <Picker
                         selectedValue={set.reps}
-                        onValueChange={(value) => updateSet(index, 'reps', value)}
+                        onValueChange={(value) => {
+                          hapticPickerChange();
+                          updateSet(index, 'reps', value);
+                        }}
                         style={styles.pickerEnhanced}
                         itemStyle={styles.pickerItemEnhanced}
                         dropdownIconColor="#00ff88"
@@ -279,7 +305,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
                     >
                       <Picker
                         selectedValue={set.rir}
-                        onValueChange={(value) => updateSet(index, 'rir', value)}
+                        onValueChange={(value) => {
+                          hapticPickerChange();
+                          updateSet(index, 'rir', value);
+                        }}
                         style={styles.pickerEnhanced}
                         itemStyle={styles.pickerItemEnhanced}
                         dropdownIconColor="#00ff88"
@@ -300,18 +329,16 @@ export default function AddWorkoutScreen({ route, navigation }) {
                   <View style={styles.weightGroup}>
                     <Text style={styles.inputLabel}>Weight</Text>
                     <View style={styles.weightInputContainer}>
-                      <TextInput
-                        mode="outlined"
+                      <RNTextInput
                         value={set.weight}
-                        onChangeText={(value) => updateSet(index, 'weight', value)}
+                        onChangeText={(value) => {
+                          hapticInput();
+                          updateSet(index, 'weight', value);
+                        }}
                         keyboardType="decimal-pad"
-                        placeholder="Optional"
+                        placeholder={`Weight (${weightUnit})`}
                         style={styles.weightInput}
-                        outlineColor="#555555"
-                        activeOutlineColor="#00ff88"
-                        textColor="#ffffff"
-                        placeholderTextColor="#666666"
-                        dense
+                        placeholderTextColor="#999999"
                       />
                       <View style={styles.unitToggle}>
                         <TouchableOpacity
@@ -320,7 +347,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
                             styles.unitButtonLeft,
                             weightUnit === 'lbs' && styles.unitButtonActive
                           ]}
-                          onPress={() => setWeightUnit('lbs')}
+                          onPress={() => {
+                            hapticButtonPress();
+                            setWeightUnit('lbs');
+                          }}
                         >
                           <Text style={[
                             styles.unitButtonText,
@@ -335,7 +365,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
                             styles.unitButtonRight,
                             weightUnit === 'kg' && styles.unitButtonActive
                           ]}
-                          onPress={() => setWeightUnit('kg')}
+                          onPress={() => {
+                            hapticButtonPress();
+                            setWeightUnit('kg');
+                          }}
                         >
                           <Text style={[
                             styles.unitButtonText,
@@ -374,7 +407,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
       <View style={styles.bottomActions}>
         <Button
           mode="outlined"
-          onPress={handleCancel}
+          onPress={() => {
+            hapticButton();
+            handleCancel();
+          }}
           style={styles.cancelButton}
           labelStyle={styles.cancelButtonLabel}
           disabled={saving}
@@ -383,7 +419,10 @@ export default function AddWorkoutScreen({ route, navigation }) {
         </Button>
         <Button
           mode="contained"
-          onPress={handleSave}
+          onPress={() => {
+            hapticButtonPress();
+            handleSave();
+          }}
           style={styles.saveButton}
           labelStyle={styles.saveButtonLabel}
           loading={saving}
@@ -495,7 +534,12 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#2a2a2a',
     marginBottom: 16,
-    elevation: 4,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderRadius: 12,
   },
   sectionTitle: {
     color: '#ffffff',
@@ -518,6 +562,11 @@ const styles = StyleSheet.create({
   },
   addSetButton: {
     backgroundColor: '#00ff88',
+    elevation: 4,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   addSetButtonLabel: {
     color: '#1a1a1a',
@@ -548,14 +597,13 @@ const styles = StyleSheet.create({
   },
   setInputsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     alignItems: 'flex-start',
   },
   pickerGroup: {
-    flex: 1,
+    flex: 0,
     alignItems: 'center',
-    minWidth: 100,
-    maxWidth: 110,
+    width: 120,
   },
   inputLabel: {
     color: '#cccccc',
@@ -573,12 +621,12 @@ const styles = StyleSheet.create({
   },
   picker: {
     color: '#ffffff',
-    height: 50,
+    height: 60,
   },
   pickerItem: {
     color: '#ffffff',
     fontSize: 16,
-    height: 120,
+    height: 110,
   },
   // Enhanced picker styles for better UX
   pickerContainerEnhanced: {
@@ -587,17 +635,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#00ff88',
     overflow: 'visible',
-    width: '100%',
-    minWidth: 90,
-    height: 150,
+    width: 120,
+    height: 170,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 6,
     shadowColor: '#00ff88',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-    paddingHorizontal: 8,
+    shadowRadius: 6,
+    paddingHorizontal: 12,
   },
   pickerEnhanced: {
     color: '#ffffff',
@@ -607,10 +654,11 @@ const styles = StyleSheet.create({
   },
   pickerItemEnhanced: {
     color: '#ffffff',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     height: 150,
     textAlign: 'center',
+    width: '100%',
   },
   unitSubtext: {
     color: '#999999',
@@ -618,29 +666,50 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   weightGroup: {
-    flex: 2,
+    flex: 1,
     minWidth: 120,
   },
   weightInputContainer: {
-    gap: 4,
+    gap: 2,
+    alignItems: 'center',
   },
   weightInput: {
     backgroundColor: '#2a2a2a',
     fontSize: 14,
+    height: 24,
+    textAlign: 'center',
+    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: '#555555',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   unitToggle: {
     flexDirection: 'row',
-    borderRadius: 6,
+    borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#555555',
+    marginTop: 4,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   unitButton: {
     flex: 1,
-    paddingVertical: 6,
+    paddingVertical: 2,
     backgroundColor: '#2a2a2a',
     alignItems: 'center',
     justifyContent: 'center',
+    height: 18,
   },
   unitButtonLeft: {
     borderRightWidth: 0.5,
@@ -698,6 +767,11 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 2,
     backgroundColor: '#00ff88',
+    elevation: 6,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   saveButtonLabel: {
     color: '#1a1a1a',

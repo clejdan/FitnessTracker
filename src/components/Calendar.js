@@ -24,6 +24,7 @@ import {
   setMonth,
   setDate,
 } from 'date-fns';
+import { hapticDateNavigate, hapticDateSelect } from '../utils/haptics';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -36,6 +37,7 @@ const getTodayDate = () => {
 export default function Calendar({ 
   markedDates = [], 
   onDateSelect, 
+  onDateTap,
   selectedDate, 
   theme = 'light' 
 }) {
@@ -92,6 +94,7 @@ export default function Calendar({
   };
 
   const handlePreviousDay = () => {
+    hapticDateNavigate();
     const newDate = subDays(selectedDateObj, 1);
     setSelectedDateObj(newDate);
     setTempDate(newDate);
@@ -101,6 +104,7 @@ export default function Calendar({
   };
 
   const handleNextDay = () => {
+    hapticDateNavigate();
     const newDate = addDays(selectedDateObj, 1);
     setSelectedDateObj(newDate);
     setTempDate(newDate);
@@ -110,6 +114,7 @@ export default function Calendar({
   };
 
   const handleToday = () => {
+    hapticDateSelect();
     const today = getTodayDate();
     console.log('Jump to Today clicked:', format(today, 'yyyy-MM-dd'));
     setTempDate(today);
@@ -117,13 +122,20 @@ export default function Calendar({
     if (onDateSelect) {
       onDateSelect(format(today, 'yyyy-MM-dd'));
     }
+    if (onDateTap) {
+      onDateTap(format(today, 'yyyy-MM-dd'));
+    }
     setModalVisible(false);
   };
 
   const handleConfirmDate = () => {
+    hapticDateSelect();
     setSelectedDateObj(tempDate);
     if (onDateSelect) {
       onDateSelect(format(tempDate, 'yyyy-MM-dd'));
+    }
+    if (onDateTap) {
+      onDateTap(format(tempDate, 'yyyy-MM-dd'));
     }
     setModalVisible(false);
   };
@@ -278,7 +290,16 @@ export default function Calendar({
                           styles.pickerItem,
                           isSelected && { backgroundColor: colors.selectedBg },
                         ]}
-                        onPress={() => setTempDate(setDate(tempDate, dayNum))}
+                        onPress={() => {
+                          hapticDateSelect();
+                          setTempDate(setDate(tempDate, dayNum));
+                          // If this is the currently selected date, trigger tap
+                          if (format(setDate(tempDate, dayNum), 'yyyy-MM-dd') === format(selectedDateObj, 'yyyy-MM-dd')) {
+                            if (onDateTap) {
+                              onDateTap(format(setDate(tempDate, dayNum), 'yyyy-MM-dd'));
+                            }
+                          }
+                        }}
                       >
                         <View style={styles.dayPickerItem}>
                           <Text

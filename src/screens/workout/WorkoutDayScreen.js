@@ -23,9 +23,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
-import { getWorkout, deleteWorkout, updateWorkout } from '../../services/storageService';
+import { getWorkout, deleteWorkout, updateWorkout, deduplicateWorkouts } from '../../services/storageService';
 import { showSuccessToast, showErrorToast } from '../../utils/toast';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { 
+  hapticButtonPress, 
+  hapticSwipeSuccess, 
+  hapticDelete,
+  hapticDeleteConfirm,
+  hapticCardPress,
+  hapticCardExpand,
+  hapticDateNavigate,
+  hapticFAB,
+  hapticError,
+  hapticSuccess
+} from '../../utils/haptics';
 
 export default function WorkoutDayScreen({ route, navigation }) {
   const { date } = route.params;
@@ -34,16 +46,24 @@ export default function WorkoutDayScreen({ route, navigation }) {
   const [expandedExercises, setExpandedExercises] = useState({});
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [exerciseToDelete, setExerciseToDelete] = useState(null);
+  const [slideAnim] = useState(new Animated.Value(0));
+  const [fadeAnim] = useState(new Animated.Value(1));
 
   useFocusEffect(
     React.useCallback(() => {
       loadWorkoutData();
+      // Reset animations when screen comes into focus
+      slideAnim.setValue(0);
+      fadeAnim.setValue(1);
     }, [date])
   );
 
   const loadWorkoutData = async () => {
     setLoading(true);
     try {
+      // Clean up any duplicate workouts first
+      await deduplicateWorkouts();
+      
       const workoutData = await getWorkout(date);
       // getWorkout returns an array, but we need a single workout object with all exercises
       if (workoutData && workoutData.length > 0) {
@@ -79,22 +99,55 @@ export default function WorkoutDayScreen({ route, navigation }) {
   };
 
   const navigateToPreviousDay = () => {
+    hapticDateNavigate();
     // Parse date in local timezone to avoid UTC offset issues
     const [year, month, day] = date.split('-').map(Number);
     const localDate = new Date(year, month - 1, day, 12, 0, 0);
     const previousDate = format(subDays(localDate, 1), 'yyyy-MM-dd');
-    navigation.push('WorkoutDay', { date: previousDate });
+    
+    // Animate transition
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -50,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      navigation.push('WorkoutDay', { date: previousDate });
+    });
   };
 
   const navigateToNextDay = () => {
+    hapticDateNavigate();
     // Parse date in local timezone to avoid UTC offset issues
     const [year, month, day] = date.split('-').map(Number);
     const localDate = new Date(year, month - 1, day, 12, 0, 0);
     const nextDate = format(addDays(localDate, 1), 'yyyy-MM-dd');
-    navigation.push('WorkoutDay', { date: nextDate });
+    
+    // Animate transition
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 50,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      navigation.push('WorkoutDay', { date: nextDate });
+    });
   };
 
   const navigateToToday = () => {
+    hapticDateNavigate();
     const today = format(new Date(), 'yyyy-MM-dd');
     if (today !== date) {
       navigation.push('WorkoutDay', { date: today });
@@ -115,6 +168,7 @@ export default function WorkoutDayScreen({ route, navigation }) {
 
   const handleDeleteExercise = async (exerciseId) => {
     try {
+      hapticDeleteConfirm();
       if (workout) {
         // Filter out the exercise to delete
         const updatedExercises = workout.exercises.filter(
@@ -125,7 +179,8 @@ export default function WorkoutDayScreen({ route, navigation }) {
           // If no exercises left, delete the entire workout
           await deleteWorkout(date, workout.id);
           setWorkout(null);
-          showSuccessToast('Workout deleted successfully');
+          hapticSuccess();
+          // No toast - swipe action is self-explanatory
         } else {
           // Otherwise update the workout with remaining exercises
           const updatedWorkout = {
@@ -136,11 +191,13 @@ export default function WorkoutDayScreen({ route, navigation }) {
           
           await updateWorkout(date, workout.id, updatedWorkout);
           setWorkout(updatedWorkout);
-          showSuccessToast('Exercise deleted successfully');
+          hapticSuccess();
+          // No toast - swipe action is self-explanatory
         }
       }
     } catch (error) {
       console.error('Error deleting exercise:', error);
+      hapticError();
       showErrorToast('Failed to delete exercise. Please try again.');
     }
   };
@@ -250,7 +307,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
         friction={2}
       >
         <Card style={styles.exerciseCard}>
-          <TouchableOpacity onPress={() => toggleExercise(exercise.exerciseId)}>
+          <TouchableOpacity onPress={() => {
+            hapticCardPress();
+            toggleExercise(exercise.exerciseId);
+          }}>
             <View style={styles.exerciseHeader}>
               <View style={styles.exerciseInfo}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -264,7 +324,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
                   style={{
                     transform: [{ rotate: isExpanded ? '180deg' : '0deg' }]
                   }}
-                  onPress={() => toggleExercise(exercise.exerciseId)}
+                  onPress={() => {
+                    hapticCardExpand();
+                    toggleExercise(exercise.exerciseId);
+                  }}
                 />
               </View>
             </View>
@@ -316,29 +379,38 @@ export default function WorkoutDayScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <Animated.View 
+        style={[
+          styles.container,
+          {
+            transform: [{ translateX: slideAnim }],
+            opacity: fadeAnim,
+          }
+        ]}
+      >
         <LoadingSpinner 
           message="Loading workout..." 
           fullScreen={true}
           theme="dark"
           color="#00ff88"
         />
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <Animated.View 
+      style={[
+        styles.container,
+        {
+          transform: [{ translateX: slideAnim }],
+          opacity: fadeAnim,
+        }
+      ]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <IconButton
-            icon="arrow-left"
-            iconColor="#ffffff"
-            size={28}
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          />
           <View style={styles.dateNavigationContainer}>
             <IconButton
               icon="chevron-left"
@@ -408,7 +480,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
         style={styles.fab}
         icon="plus"
         color="#1a1a1a"
-        onPress={handleAddWorkout}
+        onPress={() => {
+          hapticFAB();
+          handleAddWorkout();
+        }}
         label={workout ? "Add Exercise" : undefined}
       />
 
@@ -435,7 +510,7 @@ export default function WorkoutDayScreen({ route, navigation }) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -456,10 +531,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  backButton: {
-    margin: 0,
-    marginLeft: -8,
   },
   dateNavigationContainer: {
     flexDirection: 'row',
@@ -535,7 +606,12 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: '#2a2a2a',
     marginBottom: 12,
-    elevation: 4,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderRadius: 12,
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -621,6 +697,11 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     backgroundColor: '#00ff88',
+    elevation: 6,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   emptyButtonLabel: {
     color: '#1a1a1a',
@@ -632,6 +713,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#00ff88',
+    elevation: 8,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
   dialog: {
     backgroundColor: '#2a2a2a',
