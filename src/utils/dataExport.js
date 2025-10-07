@@ -1,175 +1,306 @@
-/**
- * Data Export Utility
- * 
- * Provides functionality to export user data as JSON for backup
- */
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Platform, Alert } from 'react-native';
-import { getAllWorkouts, getAllMeals, getProfile, getCalorieGoal } from '../services/storageService';
+import { format } from 'date-fns';
 
-/**
- * Export all user data as JSON
- * @returns {Promise<boolean>} - Success status
- */
-export async function exportAllData() {
-  try {
-    // Gather all data
-    const [workouts, meals, profile, calorieGoal] = await Promise.all([
-      getAllWorkouts(),
-      getAllMeals(),
-      getProfile(),
-      getCalorieGoal(),
-    ]);
-
-    const exportData = {
-      version: '1.0',
-      exportDate: new Date().toISOString(),
-      data: {
-        workouts,
-        meals,
-        profile,
-        calorieGoal,
-      },
-    };
-
-    // Convert to JSON
-    const jsonString = JSON.stringify(exportData, null, 2);
-
-    // Create filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `FitnessTracker_Backup_${timestamp}.json`;
-
-    // Save to device
-    if (Platform.OS === 'web') {
-      // Web download
-      downloadJSON(jsonString, filename);
-      return true;
-    } else {
-      // Mobile share
-      const fileUri = FileSystem.documentDirectory + filename;
-      await FileSystem.writeAsStringAsync(fileUri, jsonString);
-
-      // Check if sharing is available
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: 'Export FitnessTracker Data',
-          UTI: 'public.json',
-        });
-        return true;
-      } else {
-        Alert.alert(
-          'Export Saved',
-          `Data exported to: ${fileUri}`,
-          [{ text: 'OK' }]
-        );
-        return true;
-      }
-    }
-  } catch (error) {
-    console.error('Error exporting data:', error);
-    throw new Error('Failed to export data. Please try again.');
-  }
-}
-
-/**
- * Download JSON file on web
- * @param {string} jsonString - JSON content
- * @param {string} filename - Filename for download
- */
-function downloadJSON(jsonString, filename) {
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Get data statistics for display
- * @returns {Promise<Object>} - Statistics object
- */
-export async function getDataStats() {
-  try {
-    const [workouts, meals] = await Promise.all([
-      getAllWorkouts(),
-      getAllMeals(),
-    ]);
-
-    const workoutDates = Object.keys(workouts);
-    const totalWorkouts = workoutDates.reduce(
-      (sum, date) => sum + (workouts[date]?.length || 0),
-      0
-    );
-
-    const mealDates = Object.keys(meals);
-    const totalMeals = mealDates.reduce(
-      (sum, date) => sum + (meals[date]?.length || 0),
-      0
-    );
-
-    return {
-      totalWorkouts,
-      workoutDays: workoutDates.length,
-      totalMeals,
-      mealDays: mealDates.length,
-    };
-  } catch (error) {
-    console.error('Error getting data stats:', error);
-    return {
-      totalWorkouts: 0,
-      workoutDays: 0,
-      totalMeals: 0,
-      mealDays: 0,
-    };
-  }
-}
-
-/**
- * Format file size for display
- * @param {number} bytes - Size in bytes
- * @returns {string} - Formatted size string
- */
-export function formatFileSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-/**
- * Estimate export file size
- * @returns {Promise<string>} - Estimated size string
- */
-export async function estimateExportSize() {
-  try {
-    const [workouts, meals] = await Promise.all([
-      getAllWorkouts(),
-      getAllMeals(),
-    ]);
-
-    const estimatedSize = JSON.stringify({ workouts, meals }).length;
-    return formatFileSize(estimatedSize);
-  } catch (error) {
-    console.error('Error estimating size:', error);
-    return 'Unknown';
-  }
-}
-
-export default {
-  exportAllData,
-  getDataStats,
-  formatFileSize,
-  estimateExportSize,
+const STORAGE_KEYS = {
+  WORKOUTS: 'fitness_tracker_workouts',
+  MEALS: 'fitness_tracker_meals',
+  PROFILE: 'fitness_tracker_profile',
+  CALORIE_GOAL: 'fitness_tracker_calorie_goal',
 };
 
+// Export all data to JSON
+export async function exportAllData(types = ['workouts', 'meals', 'profile', 'calorieGoal']) {
+  try {
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        appVersion: '1.0.0',
+        dataTypes: types,
+      },
+      data: {},
+    };
 
+    // Export workouts
+    if (types.includes('workouts')) {
+      const workouts = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUTS);
+      exportData.data.workouts = workouts ? JSON.parse(workouts) : {};
+    }
 
+    // Export meals
+    if (types.includes('meals')) {
+      const meals = await AsyncStorage.getItem(STORAGE_KEYS.MEALS);
+      exportData.data.meals = meals ? JSON.parse(meals) : {};
+    }
 
+    // Export profile
+    if (types.includes('profile')) {
+      const profile = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE);
+      exportData.data.profile = profile ? JSON.parse(profile) : null;
+    }
 
+    // Export calorie goal
+    if (types.includes('calorieGoal')) {
+      const calorieGoal = await AsyncStorage.getItem(STORAGE_KEYS.CALORIE_GOAL);
+      exportData.data.calorieGoal = calorieGoal ? JSON.parse(calorieGoal) : null;
+    }
+
+    return exportData;
+  } catch (error) {
+    console.error('Error exporting data:', error);
+    throw new Error('Failed to export data');
+  }
+}
+
+// Export data to file
+export async function exportToFile(types = ['workouts', 'meals', 'profile', 'calorieGoal']) {
+  try {
+    const data = await exportAllData(types);
+    const fileName = `voltra-backup-${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.json`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    
+    await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(data, null, 2));
+    
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'application/json',
+        dialogTitle: 'Export Voltra Data',
+      });
+    }
+    
+    return fileUri;
+  } catch (error) {
+    console.error('Error exporting to file:', error);
+    throw new Error('Failed to export data to file');
+  }
+}
+
+// Import data from JSON
+export async function importData(jsonData, options = { merge: false, backup: true }) {
+  try {
+    // Validate data structure
+    if (!jsonData || !jsonData.data) {
+      throw new Error('Invalid data format');
+    }
+
+    // Create backup if requested
+    if (options.backup) {
+      await createBackup();
+    }
+
+    const { data } = jsonData;
+    const results = {};
+
+    // Import workouts
+    if (data.workouts) {
+      if (options.merge) {
+        const existingWorkouts = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUTS);
+        const existing = existingWorkouts ? JSON.parse(existingWorkouts) : {};
+        const merged = { ...existing, ...data.workouts };
+        await AsyncStorage.setItem(STORAGE_KEYS.WORKOUTS, JSON.stringify(merged));
+      } else {
+        await AsyncStorage.setItem(STORAGE_KEYS.WORKOUTS, JSON.stringify(data.workouts));
+      }
+      results.workouts = Object.keys(data.workouts).length;
+    }
+
+    // Import meals
+    if (data.meals) {
+      if (options.merge) {
+        const existingMeals = await AsyncStorage.getItem(STORAGE_KEYS.MEALS);
+        const existing = existingMeals ? JSON.parse(existingMeals) : {};
+        const merged = { ...existing, ...data.meals };
+        await AsyncStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(merged));
+      } else {
+        await AsyncStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(data.meals));
+      }
+      results.meals = Object.keys(data.meals).length;
+    }
+
+    // Import profile
+    if (data.profile) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data.profile));
+      results.profile = 1;
+    }
+
+    // Import calorie goal
+    if (data.calorieGoal) {
+      await AsyncStorage.setItem(STORAGE_KEYS.CALORIE_GOAL, JSON.stringify(data.calorieGoal));
+      results.calorieGoal = 1;
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error importing data:', error);
+    throw new Error('Failed to import data');
+  }
+}
+
+// Import data from file
+export async function importFromFile(fileUri, options = { merge: false, backup: true }) {
+  try {
+    const fileContent = await FileSystem.readAsStringAsync(fileUri);
+    const jsonData = JSON.parse(fileContent);
+    return await importData(jsonData, options);
+  } catch (error) {
+    console.error('Error importing from file:', error);
+    throw new Error('Failed to import data from file');
+  }
+}
+
+// Create backup
+export async function createBackup() {
+  try {
+    const backupData = await exportAllData();
+    const fileName = `voltra-backup-${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.json`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    
+    await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(backupData, null, 2));
+    return fileUri;
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    throw new Error('Failed to create backup');
+  }
+}
+
+// Get data statistics
+export async function getDataStats() {
+  try {
+    const stats = {
+      workouts: 0,
+      meals: 0,
+      profile: false,
+      calorieGoal: false,
+      totalSize: 0,
+      lastUpdated: null,
+    };
+
+    // Count workouts
+    const workouts = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUTS);
+    if (workouts) {
+      const workoutData = JSON.parse(workouts);
+      stats.workouts = Object.keys(workoutData).length;
+      stats.totalSize += workouts.length;
+    }
+
+    // Count meals
+    const meals = await AsyncStorage.getItem(STORAGE_KEYS.MEALS);
+    if (meals) {
+      const mealData = JSON.parse(meals);
+      stats.meals = Object.keys(mealData).length;
+      stats.totalSize += meals.length;
+    }
+
+    // Check profile
+    const profile = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE);
+    if (profile) {
+      stats.profile = true;
+      stats.totalSize += profile.length;
+    }
+
+    // Check calorie goal
+    const calorieGoal = await AsyncStorage.getItem(STORAGE_KEYS.CALORIE_GOAL);
+    if (calorieGoal) {
+      stats.calorieGoal = true;
+      stats.totalSize += calorieGoal.length;
+    }
+
+    // Get last updated date
+    if (stats.workouts > 0 || stats.meals > 0) {
+      const allData = await exportAllData();
+      stats.lastUpdated = allData.metadata.exportDate;
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting data stats:', error);
+    return null;
+  }
+}
+
+// Clear all data
+export async function clearAllData() {
+  try {
+    const keys = Object.values(STORAGE_KEYS);
+    await AsyncStorage.multiRemove(keys);
+    return true;
+  } catch (error) {
+    console.error('Error clearing all data:', error);
+    throw new Error('Failed to clear all data');
+  }
+}
+
+// Validate data integrity
+export async function validateDataIntegrity() {
+  try {
+    const issues = [];
+    
+    // Check workouts
+    const workouts = await AsyncStorage.getItem(STORAGE_KEYS.WORKOUTS);
+    if (workouts) {
+      try {
+        const workoutData = JSON.parse(workouts);
+        Object.entries(workoutData).forEach(([date, workout]) => {
+          if (!workout.exercises || !Array.isArray(workout.exercises)) {
+            issues.push(`Invalid workout structure for date: ${date}`);
+          }
+        });
+      } catch (error) {
+        issues.push('Invalid workout data format');
+      }
+    }
+
+    // Check meals
+    const meals = await AsyncStorage.getItem(STORAGE_KEYS.MEALS);
+    if (meals) {
+      try {
+        const mealData = JSON.parse(meals);
+        Object.entries(mealData).forEach(([date, meal]) => {
+          if (!meal.mealName || !meal.time) {
+            issues.push(`Invalid meal structure for date: ${date}`);
+          }
+        });
+      } catch (error) {
+        issues.push('Invalid meal data format');
+      }
+    }
+
+    return {
+      valid: issues.length === 0,
+      issues,
+    };
+  } catch (error) {
+    console.error('Error validating data integrity:', error);
+    return {
+      valid: false,
+      issues: ['Failed to validate data integrity'],
+    };
+  }
+}
+
+// Data migration utilities
+export const DataMigration = {
+  // Migrate data from old format to new format
+  async migrateToNewFormat() {
+    try {
+      // This would contain migration logic for future app updates
+      console.log('Data migration completed');
+      return true;
+    } catch (error) {
+      console.error('Data migration failed:', error);
+      return false;
+    }
+  },
+
+  // Check if migration is needed
+  async needsMigration() {
+    try {
+      // Check for old data formats that need migration
+      return false; // No migration needed for now
+    } catch (error) {
+      console.error('Error checking migration status:', error);
+      return false;
+    }
+  },
+};

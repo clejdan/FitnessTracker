@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, AppState } from 'react-native';
 import { Text, Card, Title, Button, FAB, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
@@ -20,6 +20,8 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
 
   // Load workout dates when screen comes into focus
   useFocusEffect(
@@ -40,16 +42,35 @@ export default function WorkoutCalendarScreen({ navigation }) {
     }
   }, [selectedDate]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Load all dates that have workouts
-      const dates = await getWorkoutDates();
-      setWorkoutDates(dates);
+  // Background refresh when app comes to foreground
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active' && !initialLoad) {
+        loadData(true);
+      }
+    };
 
-      // Load workout for selected date
-      const workoutData = await getWorkout(selectedDate);
-      // getWorkout returns an array, merge all exercises into one workout object
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [initialLoad]);
+
+  const loadData = async (forceRefresh = false) => {
+    if (!forceRefresh && !initialLoad) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      // Load workout dates with caching
+      const datesResult = await CachedDataFetcher.getWorkoutDates();
+      setWorkoutDates(datesResult.data || []);
+      setFromCache(datesResult.fromCache);
+
+      // Load workout for selected date with caching
+      const workoutResult = await CachedDataFetcher.getWorkouts(selectedDate);
+      const workoutData = workoutResult.data;
+      
       if (workoutData && workoutData.length > 0) {
         const allExercises = workoutData.flatMap(w => w.exercises || []);
         const mergedWorkout = {
@@ -60,10 +81,18 @@ export default function WorkoutCalendarScreen({ navigation }) {
       } else {
         setTodayWorkout(null);
       }
+
+      // If data came from cache, refresh in background
+      if (datesResult.fromCache || workoutResult.fromCache) {
+        setTimeout(() => loadData(true), 100);
+      }
     } catch (error) {
       console.error('Error loading workout data:', error);
+      showErrorToast('Failed to load workout data. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setInitialLoad(false);
     }
   };
 
@@ -96,11 +125,34 @@ export default function WorkoutCalendarScreen({ navigation }) {
     setRefreshing(false);
   };
 
+  // Show loading state
+  if (loading && initialLoad) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Title style={styles.headerTitle}>Workout Calendar</Title>
+          <Text style={styles.headerSubtitle}>Loading...</Text>
+        </View>
+        
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#00ff88" />
+          <Text style={styles.loadingText}>Loading workout data...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Title Header */}
       <View style={styles.header}>
         <Title style={styles.headerTitle}>Workout Calendar</Title>
+        {fromCache && (
+          <View style={styles.cacheIndicator}>
+            <ActivityIndicator size="small" color="#999999" />
+            <Text style={styles.cacheText}>Syncing...</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView 
@@ -108,7 +160,7 @@ export default function WorkoutCalendarScreen({ navigation }) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => loadData(true)}
             tintColor="#00ff88"
             colors={['#00ff88']}
           />
@@ -323,6 +375,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
+  },
+  cacheIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  cacheText: {
+    color: '#999999',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    color: '#999999',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 

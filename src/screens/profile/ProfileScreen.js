@@ -11,7 +11,10 @@ import {
 } from '../../utils/calorieCalculations';
 import { showErrorToast, showSuccessToast } from '../../utils/toast';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { exportAllData, getDataStats } from '../../utils/dataExport';
+import { exportAllData, getDataStats, exportToFile, importFromFile, clearAllData, validateDataIntegrity } from '../../utils/dataExport';
+import { DataCache, NetworkManager } from '../../utils/dataCache';
+import { useAccessibility, useAccessibilityAnnouncements } from '../../hooks/useAccessibility';
+import { AccessibilityManager } from '../../utils/accessibility';
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -21,13 +24,33 @@ export default function ProfileScreen({ navigation }) {
   const [heightUnit, setHeightUnit] = useState('cm'); // 'cm' or 'inches'
   const [dataStats, setDataStats] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [cacheInfo, setCacheInfo] = useState(null);
+
+  // Accessibility hooks
+  const { isScreenReaderEnabled, announce } = useAccessibility();
+  const { 
+    announceDataExported, 
+    announceCacheCleared, 
+    announceNetworkStatus,
+    announceGoalUpdated 
+  } = useAccessibilityAnnouncements();
 
   // Load data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
+      loadCacheInfo();
     }, [])
   );
+
+  // Initialize network monitoring
+  useEffect(() => {
+    NetworkManager.init();
+    const unsubscribe = NetworkManager.addListener(setIsOnline);
+    return unsubscribe;
+  }, []);
 
   const loadData = async () => {
     try {
@@ -55,16 +78,66 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const loadCacheInfo = async () => {
+    try {
+      const info = await DataCache.getCacheInfo();
+      setCacheInfo(info);
+    } catch (error) {
+      console.error('Error loading cache info:', error);
+    }
+  };
+
   const handleExportData = async () => {
     setExporting(true);
     try {
-      await exportAllData();
+      await exportToFile();
       showSuccessToast('Data exported successfully!');
+      announceDataExported();
     } catch (error) {
       console.error('Error exporting data:', error);
       showErrorToast('Failed to export data. Please try again.');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    setImporting(true);
+    try {
+      // This would typically open a file picker
+      // For now, we'll show a placeholder
+      showSuccessToast('Import functionality coming soon!');
+    } catch (error) {
+      console.error('Error importing data:', error);
+      showErrorToast('Failed to import data. Please try again.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    try {
+      await DataCache.clearAll();
+      showSuccessToast('Cache cleared successfully!');
+      announceCacheCleared();
+      loadCacheInfo();
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      showErrorToast('Failed to clear cache. Please try again.');
+    }
+  };
+
+  const handleValidateData = async () => {
+    try {
+      const validation = await validateDataIntegrity();
+      if (validation.valid) {
+        showSuccessToast('Data integrity check passed!');
+      } else {
+        showErrorToast(`Data issues found: ${validation.issues.join(', ')}`);
+      }
+    } catch (error) {
+      console.error('Error validating data:', error);
+      showErrorToast('Failed to validate data. Please try again.');
     }
   };
 
@@ -425,9 +498,80 @@ export default function ProfileScreen({ navigation }) {
               disabled={exporting}
               style={styles.exportButton}
               icon="download"
+              {...AccessibilityManager.getButtonProps(
+                exporting ? 'Exporting data' : 'Export data',
+                'Double tap to export all your data to a file',
+                exporting
+              )}
             >
               {exporting ? 'Exporting...' : 'Export Data'}
             </Button>
+            
+            <Button
+              mode="outlined"
+              onPress={handleImportData}
+              loading={importing}
+              disabled={importing}
+              style={styles.importButton}
+              icon="upload"
+              {...AccessibilityManager.getButtonProps(
+                importing ? 'Importing data' : 'Import data',
+                'Double tap to import data from a file',
+                importing
+              )}
+            >
+              {importing ? 'Importing...' : 'Import Data'}
+            </Button>
+            
+            <Button
+              mode="outlined"
+              onPress={handleValidateData}
+              style={styles.validateButton}
+              icon="check-circle"
+              {...AccessibilityManager.getButtonProps(
+                'Validate data',
+                'Double tap to check data integrity'
+              )}
+            >
+              Validate Data
+            </Button>
+            
+            <Button
+              mode="outlined"
+              onPress={handleClearCache}
+              style={styles.clearCacheButton}
+              icon="delete"
+              {...AccessibilityManager.getButtonProps(
+                'Clear cache',
+                'Double tap to clear cached data'
+              )}
+            >
+              Clear Cache
+            </Button>
+            
+            {/* Network Status */}
+            <View style={styles.networkStatus}>
+              <Ionicons 
+                name={isOnline ? "wifi" : "wifi-off"} 
+                size={16} 
+                color={isOnline ? "#4CAF50" : "#FF5252"} 
+              />
+              <Text style={[styles.networkText, { color: isOnline ? "#4CAF50" : "#FF5252" }]}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
+            </View>
+            
+            {/* Cache Info */}
+            {cacheInfo && (
+              <View style={styles.cacheInfo}>
+                <Text style={styles.cacheInfoTitle}>Cache Status</Text>
+                {Object.entries(cacheInfo).map(([key, info]) => (
+                  <Text key={key} style={styles.cacheInfoText}>
+                    {key}: {info.valid ? 'Valid' : 'Expired'} ({Math.round(info.age / 1000)}s ago)
+                  </Text>
+                ))}
+              </View>
+            )}
           </Card.Content>
         </Card>
       </View>
@@ -721,6 +865,50 @@ const styles = StyleSheet.create({
   },
   exportButton: {
     backgroundColor: '#2196F3',
+  },
+  importButton: {
+    marginTop: 8,
+    borderColor: '#FF9800',
+  },
+  validateButton: {
+    marginTop: 8,
+    borderColor: '#4CAF50',
+  },
+  clearCacheButton: {
+    marginTop: 8,
+    borderColor: '#FF5252',
+  },
+  networkStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    padding: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  networkText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cacheInfo: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  cacheInfoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333333',
+  },
+  cacheInfoText: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 4,
   },
 });
 

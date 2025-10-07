@@ -38,6 +38,8 @@ import {
   hapticError,
   hapticSuccess
 } from '../../utils/haptics';
+import { useAccessibility, useAccessibilityAnnouncements, useAccessibleList } from '../../hooks/useAccessibility';
+import { AccessibilityManager } from '../../utils/accessibility';
 
 export default function WorkoutDayScreen({ route, navigation }) {
   const { date } = route.params;
@@ -48,6 +50,15 @@ export default function WorkoutDayScreen({ route, navigation }) {
   const [exerciseToDelete, setExerciseToDelete] = useState(null);
   const [slideAnim] = useState(new Animated.Value(0));
   const [fadeAnim] = useState(new Animated.Value(1));
+
+  // Accessibility hooks
+  const { isScreenReaderEnabled, announce } = useAccessibility();
+  const { announceExerciseDeleted, announceDateChanged } = useAccessibilityAnnouncements();
+  const { 
+    getListAccessibilityProps, 
+    getItemAccessibilityProps,
+    announceItemRemoved 
+  } = useAccessibleList(workout?.exercises || [], 'Workout exercises');
 
   useFocusEffect(
     React.useCallback(() => {
@@ -104,6 +115,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
     const [year, month, day] = date.split('-').map(Number);
     const localDate = new Date(year, month - 1, day, 12, 0, 0);
     const previousDate = format(subDays(localDate, 1), 'yyyy-MM-dd');
+    
+    if (isScreenReaderEnabled) {
+      announceDateChanged(previousDate);
+    }
     
     // Animate transition
     Animated.parallel([
@@ -462,15 +477,24 @@ export default function WorkoutDayScreen({ route, navigation }) {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        {...getListAccessibilityProps()}
+      >
         {!workout || !workout.exercises || workout.exercises.length === 0 ? (
           renderEmptyState()
         ) : (
           <View>
-            <Text style={styles.sectionTitle}>
+            <Text 
+              style={styles.sectionTitle}
+              {...AccessibilityManager.getHeaderProps(
+                `Exercises (${workout.exercises.length})`,
+                2
+              )}
+            >
               Exercises ({workout.exercises.length})
             </Text>
-            {workout.exercises.map(exercise => renderExerciseCard(exercise))}
+            {workout.exercises.map((exercise, index) => renderExerciseCard(exercise, index))}
           </View>
         )}
       </ScrollView>

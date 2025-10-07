@@ -36,6 +36,8 @@ import {
 } from '../../utils/haptics';
 import { useFormValidation, ValidationRules } from '../../utils/formValidation';
 import { WorkoutDefaults, FormPersistence, ExerciseSuggestions } from '../../utils/smartDefaults';
+import { useAccessibility, useAccessibilityAnnouncements, useAccessibleForm } from '../../hooks/useAccessibility';
+import { AccessibilityManager, AccessibilityPatterns } from '../../utils/accessibility';
 
 export default function AddWorkoutScreen({ route, navigation }) {
   const { date, editMode = false, workoutData = null } = route?.params || {};
@@ -54,15 +56,71 @@ export default function AddWorkoutScreen({ route, navigation }) {
     );
   }
 
-  // Form state
+  // Form state with smart defaults
   const [exerciseName, setExerciseName] = useState('');
-  const [sets, setSets] = useState([{ setNumber: 1, reps: 1, rep: 2, weight: '' }]);
+  const [sets, setSets] = useState([{ setNumber: 1, reps: 1, rir: 2, weight: '' }]);
   const [weightUnit, setWeightUnit] = useState('lbs');
-  const [saving, setSaving] = useState(false);
+  const [exerciseSuggestions, setExerciseSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Validation state
+  // UI state
+  const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [lastAutoSaved, setLastAutoSaved] = useState(null);
+
+  // Enhanced validation with real-time feedback
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
+  const [fieldValidations, setFieldValidations] = useState({});
+
+  // Accessibility hooks
+  const { isScreenReaderEnabled, announce } = useAccessibility();
+  const { announceWorkoutSaved, announceFormError } = useAccessibilityAnnouncements();
+  const { 
+    getFieldAccessibilityProps, 
+    setFieldError, 
+    clearFieldError,
+    focusNext,
+    focusPrevious 
+  } = useAccessibleForm([
+    { name: 'exerciseName', label: 'Exercise Name', required: true },
+    { name: 'reps', label: 'Reps', required: true },
+    { name: 'rir', label: 'RIR', required: true },
+    { name: 'weight', label: 'Weight', required: false },
+  ]);
+
+  // Load smart defaults and suggestions
+  useEffect(() => {
+    const loadDefaults = async () => {
+      try {
+        const defaults = await WorkoutDefaults.getDefaults();
+        const suggestions = await ExerciseSuggestions.getSuggestions();
+        
+        setWeightUnit(defaults.weightUnit || 'lbs');
+        setExerciseSuggestions(suggestions);
+        
+        // Load saved form state if not in edit mode
+        if (!editMode) {
+          const savedState = await FormPersistence.loadFormState('workout');
+          if (savedState) {
+            setExerciseName(savedState.exerciseName || '');
+            setSets(savedState.sets || [{ setNumber: 1, reps: defaults.reps || 10, rir: defaults.rir || 2, weight: '' }]);
+            setWeightUnit(savedState.weightUnit || defaults.weightUnit || 'lbs');
+          } else {
+            // Use smart defaults
+            setSets([{ setNumber: 1, reps: defaults.reps || 10, rir: defaults.rir || 2, weight: '' }]);
+            if (defaults.lastUsedExercise) {
+              setExerciseName(defaults.lastUsedExercise);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading defaults:', error);
+      }
+    };
+
+    loadDefaults();
+  }, [editMode]);
 
   useEffect(() => {
     if (editMode && workoutData && workoutData.exercises && workoutData.exercises.length > 0) {
@@ -77,6 +135,30 @@ export default function AddWorkoutScreen({ route, navigation }) {
       })) || [{ setNumber: 1, reps: 1, rir: 2, weight: '' }]);
     }
   }, [editMode, workoutData]);
+
+  // Auto-save form state
+  useEffect(() => {
+    const autoSave = async () => {
+      if (exerciseName || sets.some(set => set.weight)) {
+        setAutoSaving(true);
+        try {
+          await FormPersistence.saveFormState('workout', {
+            exerciseName,
+            sets,
+            weightUnit,
+          });
+          setLastAutoSaved(new Date());
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setAutoSaving(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(autoSave, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [exerciseName, sets, weightUnit]);
 
   const addSet = () => {
     const newSetNumber = sets.length + 1;
@@ -103,6 +185,79 @@ export default function AddWorkoutScreen({ route, navigation }) {
     const newSets = [...sets];
     newSets[setIndex][field] = value;
     setSets(newSets);
+    
+    // Real-time validation for weight field
+    if (field === 'weight' && value) {
+      const weight = parseFloat(value);
+      if (isNaN(weight) || weight < 0) {
+        setFieldValidations(prev => ({
+          ...prev,
+          [`set${setIndex}_weight`]: 'Weight must be a positive number'
+        }));
+      } else {
+        setFieldValidations(prev => {
+          const newValidations = { ...prev };
+          delete newValidations[`set${setIndex}_weight`];
+          return newValidations;
+        });
+      }
+    }
+  };
+
+  // Real-time validation for exercise name
+  const validateExerciseName = (name) => {
+    if (!name.trim()) {
+      return 'Exercise name is required';
+    }
+    if (name.length < 2) {
+      return 'Exercise name must be at least 2 characters';
+    }
+    if (name.length > 50) {
+      return 'Exercise name must be less than 50 characters';
+    }
+    return null;
+  };
+
+  const handleExerciseNameChange = (name) => {
+    setExerciseName(name);
+    
+    // Real-time validation
+    if (touched.exerciseName) {
+      const error = validateExerciseName(name);
+      setErrors(prev => ({
+        ...prev,
+        exerciseName: error
+      }));
+    }
+    
+    // Show suggestions if name is being typed
+    if (name.length > 1) {
+      setShowSuggestions(true);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleExerciseNameBlur = () => {
+    setTouched(prev => ({ ...prev, exerciseName: true }));
+    const error = validateExerciseName(exerciseName);
+    setErrors(prev => ({
+      ...prev,
+      exerciseName: error
+    }));
+  };
+
+  const selectSuggestion = (suggestion) => {
+    setExerciseName(suggestion);
+    setShowSuggestions(false);
+    setTouched(prev => ({ ...prev, exerciseName: true }));
+    
+    // Clear any existing error
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.exerciseName;
+      return newErrors;
+    });
   };
 
   const validateForm = () => {
@@ -126,14 +281,27 @@ export default function AddWorkoutScreen({ route, navigation }) {
   };
 
   const handleSave = async () => {
+    // Mark all fields as touched for validation
+    setTouched({
+      exerciseName: true,
+      ...Object.keys(sets).reduce((acc, _, index) => {
+        acc[`set${index}_weight`] = true;
+        return acc;
+      }, {})
+    });
+
     if (!validateForm()) {
-      showErrorToast('Please fill in the exercise name');
+      hapticValidation();
+      announceFormError();
+      showErrorToast('Please fix the validation errors before saving');
       return;
     }
 
     setSaving(true);
 
     try {
+      hapticFormSubmit();
+      
       const exercise = {
         exerciseId: uuid.v4(),
         name: exerciseName.trim(),
@@ -157,19 +325,34 @@ export default function AddWorkoutScreen({ route, navigation }) {
 
       if (editMode && workoutData?.id) {
         await updateWorkout(date, workoutData.id, workout);
-        console.log('Workout updated:', workout);
         showSuccessToast(`${exerciseName} updated successfully!`, () => {
+          hapticSuccess();
+          announceWorkoutSaved();
           navigation.goBack();
         });
       } else {
         await saveWorkout(date, workout);
-        console.log('Workout saved:', workout);
         showSuccessToast(`${exerciseName} saved successfully!`, () => {
+          hapticSuccess();
+          announceWorkoutSaved();
           navigation.goBack();
         });
       }
+
+      // Save smart defaults and suggestions
+      await WorkoutDefaults.updateFromWorkout({
+        exerciseName: exerciseName.trim(),
+        sets: sets,
+        weightUnit: weightUnit,
+      });
+      await ExerciseSuggestions.addExercise(exerciseName.trim());
+      
+      // Clear form state after successful save
+      await FormPersistence.clearFormState('workout');
+      
     } catch (error) {
       console.error('Error saving workout:', error);
+      hapticError();
       showErrorToast('Failed to save workout. Please try again.');
     } finally {
       setSaving(false);
@@ -192,6 +375,19 @@ export default function AddWorkoutScreen({ route, navigation }) {
           {editMode ? 'Edit Workout' : 'Add Workout'}
         </Title>
         <Text style={styles.headerSubtitle}>{date}</Text>
+        
+        {/* Auto-save indicator */}
+        {(autoSaving || lastAutoSaved) && (
+          <View style={styles.autoSaveIndicator}>
+            <ActivityIndicator 
+              size="small" 
+              color={autoSaving ? "#00ff88" : "#999999"} 
+            />
+            <Text style={styles.autoSaveText}>
+              {autoSaving ? 'Saving...' : 'Saved'}
+            </Text>
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -207,22 +403,58 @@ export default function AddWorkoutScreen({ route, navigation }) {
               mode="outlined"
               label="Exercise Name"
               value={exerciseName}
-                        onChangeText={(text) => {
-                          hapticInput();
-                          setExerciseName(text);
-                        }}
+              onChangeText={(text) => {
+                hapticInput();
+                handleExerciseNameChange(text);
+                if (isScreenReaderEnabled) {
+                  announce(`Exercise name: ${text || 'empty'}`);
+                }
+              }}
+              onBlur={handleExerciseNameBlur}
+              onFocus={() => {
+                if (isScreenReaderEnabled) {
+                  announce('Exercise name field focused. Enter the name of your exercise.');
+                }
+              }}
               placeholder="e.g., Bench Press, Squat, Deadlift"
               style={styles.input}
               outlineColor="#555555"
               activeOutlineColor="#00ff88"
               textColor="#ffffff"
               placeholderTextColor="#999999"
-              error={errors.exerciseName}
+              error={errors.exerciseName && touched.exerciseName}
+              {...AccessibilityManager.getInputProps(
+                'Exercise Name',
+                'Enter the name of your exercise',
+                true,
+                errors.exerciseName && touched.exerciseName ? errors.exerciseName : ''
+              )}
             />
-            {errors.exerciseName && (
+            {errors.exerciseName && touched.exerciseName && (
               <HelperText type="error" visible={true} style={styles.errorText}>
                 {errors.exerciseName}
               </HelperText>
+            )}
+            
+            {/* Exercise Suggestions */}
+            {showSuggestions && exerciseSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                {exerciseSuggestions
+                  .filter(suggestion => 
+                    suggestion.toLowerCase().includes(exerciseName.toLowerCase()) &&
+                    suggestion.toLowerCase() !== exerciseName.toLowerCase()
+                  )
+                  .slice(0, 5)
+                  .map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(suggestion)}
+                    >
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
             )}
           </Card.Content>
         </Card>
@@ -423,10 +655,20 @@ export default function AddWorkoutScreen({ route, navigation }) {
             hapticButtonPress();
             handleSave();
           }}
+          onFocus={() => {
+            if (isScreenReaderEnabled) {
+              announce('Save workout button. Double tap to save your exercise.');
+            }
+          }}
           style={styles.saveButton}
           labelStyle={styles.saveButtonLabel}
           loading={saving}
           disabled={saving}
+          {...AccessibilityManager.getButtonProps(
+            saving ? 'Saving workout' : 'Save workout',
+            'Double tap to save your exercise',
+            saving
+          )}
         >
           {saving ? 'Saving...' : 'Save Workout'}
         </Button>
@@ -776,5 +1018,44 @@ const styles = StyleSheet.create({
   saveButtonLabel: {
     color: '#1a1a1a',
     fontWeight: 'bold',
+  },
+  // Enhanced form UX styles
+  suggestionsContainer: {
+    marginTop: 8,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333333',
+    maxHeight: 150,
+  },
+  suggestionItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  suggestionText: {
+    color: '#ffffff',
+    fontSize: 14,
+  },
+  inputError: {
+    borderColor: '#ff5252',
+  },
+  autoSaveIndicator: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#555555',
+  },
+  autoSaveText: {
+    color: '#999999',
+    fontSize: 12,
+    marginLeft: 4,
   },
 });

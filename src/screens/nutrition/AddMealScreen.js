@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { saveMeal, updateMeal } from '../../services/storageService';
 import { calculateCalories, convertToGrams } from '../../utils/unitConversions';
 import { showSuccessToast, showErrorToast, showConfirmDialog } from '../../utils/toast';
+import { MealDefaults, FormPersistence, MealSuggestions } from '../../utils/smartDefaults';
 
 const MEAL_SUGGESTIONS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-Workout', 'Post-Workout'];
 
@@ -61,9 +62,51 @@ export default function AddMealScreen({ route, navigation }) {
 
   // UI state
   const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [lastAutoSaved, setLastAutoSaved] = useState(null);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [calculatedCalories, setCalculatedCalories] = useState(0);
+  const [mealSuggestions, setMealSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Load smart defaults and suggestions
+  useEffect(() => {
+    const loadDefaults = async () => {
+      try {
+        const defaults = await MealDefaults.getDefaults();
+        const suggestions = await MealSuggestions.getSuggestions();
+        
+        setMealSuggestions(suggestions);
+        
+        // Load saved form state if not in edit mode
+        if (!editMode) {
+          const savedState = await FormPersistence.loadFormState('meal');
+          if (savedState) {
+            setMealName(savedState.mealName || '');
+            setProteinValue(savedState.proteinValue || '');
+            setCarbsValue(savedState.carbsValue || '');
+            setFatsValue(savedState.fatsValue || '');
+            setProteinUnit(savedState.proteinUnit || defaults.proteinUnit || 'g');
+            setCarbsUnit(savedState.carbsUnit || defaults.carbsUnit || 'g');
+            setFatsUnit(savedState.fatsUnit || defaults.fatsUnit || 'g');
+          } else {
+            // Use smart defaults
+            setProteinUnit(defaults.proteinUnit || 'g');
+            setCarbsUnit(defaults.carbsUnit || 'g');
+            setFatsUnit(defaults.fatsUnit || 'g');
+            if (defaults.lastUsedMeal) {
+              setMealName(defaults.lastUsedMeal);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading meal defaults:', error);
+      }
+    };
+
+    loadDefaults();
+  }, [editMode]);
 
   useEffect(() => {
     if (editMode && mealData) {
@@ -84,6 +127,34 @@ export default function AddMealScreen({ route, navigation }) {
       setFatsUnit(mealData.fats?.unit || 'g');
     }
   }, [editMode, mealData]);
+
+  // Auto-save form state
+  useEffect(() => {
+    const autoSave = async () => {
+      if (mealName || proteinValue || carbsValue || fatsValue) {
+        setAutoSaving(true);
+        try {
+          await FormPersistence.saveFormState('meal', {
+            mealName,
+            proteinValue,
+            carbsValue,
+            fatsValue,
+            proteinUnit,
+            carbsUnit,
+            fatsUnit,
+          });
+          setLastAutoSaved(new Date());
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setAutoSaving(false);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(autoSave, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [mealName, proteinValue, carbsValue, fatsValue, proteinUnit, carbsUnit, fatsUnit]);
 
   // Calculate calories in real-time
   useEffect(() => {
@@ -226,17 +297,27 @@ export default function AddMealScreen({ route, navigation }) {
 
       if (editMode && mealData?.id) {
         await updateMeal(date, mealData.id, meal);
-        console.log('Meal updated:', meal);
         showSuccessToast(`${mealName} updated successfully!`, () => {
           navigation.goBack();
         });
       } else {
         await saveMeal(date, meal);
-        console.log('Meal saved:', meal);
         showSuccessToast(`${mealName} saved successfully!`, () => {
           navigation.goBack();
         });
       }
+
+      // Save smart defaults and suggestions
+      await MealDefaults.updateFromMeal({
+        mealName: mealName.trim(),
+        proteinUnit,
+        carbsUnit,
+        fatsUnit,
+      });
+      await MealSuggestions.addMeal(mealName.trim());
+      
+      // Clear form state after successful save
+      await FormPersistence.clearFormState('meal');
     } catch (error) {
       console.error('Error saving meal:', error);
       showErrorToast('Failed to save meal. Please try again.');
