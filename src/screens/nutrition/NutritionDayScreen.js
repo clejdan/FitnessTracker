@@ -96,12 +96,6 @@ export default function NutritionDayScreen({ route, navigation }) {
     navigation.push('NutritionDay', { date: nextDate });
   };
 
-  const navigateToToday = () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    if (today !== date) {
-      navigation.push('NutritionDay', { date: today });
-    }
-  };
 
   const isToday = () => {
     return date === format(new Date(), 'yyyy-MM-dd');
@@ -391,13 +385,6 @@ export default function NutritionDayScreen({ route, navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <IconButton
-            icon="arrow-left"
-            iconColor="#333333"
-            size={28}
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          />
           <View style={styles.dateNavigationContainer}>
             <IconButton
               icon="chevron-left"
@@ -493,10 +480,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  backButton: {
-    margin: 0,
-    marginLeft: -8,
+    justifyContent: 'center',
   },
   dateNavigationContainer: {
     flexDirection: 'row',

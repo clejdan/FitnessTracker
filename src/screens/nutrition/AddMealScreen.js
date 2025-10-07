@@ -19,8 +19,6 @@ import {
   Menu,
   Divider,
 } from 'react-native-paper';
-import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import uuid from 'react-native-uuid';
 import { format } from 'date-fns';
 import { saveMeal, updateMeal } from '../../services/storageService';
@@ -31,7 +29,7 @@ import { MealDefaults, FormPersistence, MealSuggestions } from '../../utils/smar
 const MEAL_SUGGESTIONS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-Workout', 'Post-Workout'];
 
 export default function AddMealScreen({ route, navigation }) {
-  const { date, editMode = false, mealData = null } = route?.params || {};
+  const { date, editMode = false, mealData = null, onMealAdded } = route?.params || {};
 
   // Validate required date parameter
   if (!date) {
@@ -49,8 +47,6 @@ export default function AddMealScreen({ route, navigation }) {
 
   // Form state
   const [mealName, setMealName] = useState('');
-  const [time, setTime] = useState(new Date());
-  const [showTimePicker, setShowTimePicker] = useState(false);
   
   // Macro values and units
   const [proteinValue, setProteinValue] = useState('');
@@ -112,12 +108,6 @@ export default function AddMealScreen({ route, navigation }) {
     if (editMode && mealData) {
       // Pre-populate form with existing data
       setMealName(mealData.mealName || '');
-      if (mealData.time) {
-        const [hours, minutes] = mealData.time.split(':');
-        const mealTime = new Date();
-        mealTime.setHours(parseInt(hours), parseInt(minutes));
-        setTime(mealTime);
-      }
       
       setProteinValue(mealData.protein?.value?.toString() || '');
       setProteinUnit(mealData.protein?.unit || 'g');
@@ -181,12 +171,6 @@ export default function AddMealScreen({ route, navigation }) {
     setTouched({ ...touched, mealName: true });
   };
 
-  const handleTimeChange = (event, selectedTime) => {
-    setShowTimePicker(false);
-    if (selectedTime) {
-      setTime(selectedTime);
-    }
-  };
 
   const setAllUnits = (unit) => {
     setProteinUnit(unit);
@@ -269,7 +253,6 @@ export default function AddMealScreen({ route, navigation }) {
         id: editMode && mealData?.id ? mealData.id : uuid.v4(),
         date: date,
         mealName: mealName.trim(),
-        time: format(time, 'HH:mm'),
         protein: {
           value: proteinGrams,
           unit: 'g',
@@ -298,11 +281,13 @@ export default function AddMealScreen({ route, navigation }) {
       if (editMode && mealData?.id) {
         await updateMeal(date, mealData.id, meal);
         showSuccessToast(`${mealName} updated successfully!`, () => {
+          if (onMealAdded) onMealAdded();
           navigation.goBack();
         });
       } else {
         await saveMeal(date, meal);
         showSuccessToast(`${mealName} saved successfully!`, () => {
+          if (onMealAdded) onMealAdded();
           navigation.goBack();
         });
       }
@@ -348,18 +333,24 @@ export default function AddMealScreen({ route, navigation }) {
           error={touched[label.toLowerCase()] && error}
           dense
         />
-        <View style={styles.unitPickerContainer}>
-          <Picker
-            selectedValue={unit}
-            onValueChange={setUnit}
-            style={styles.unitPicker}
-            dropdownIconColor="#4CAF50"
-          >
-            <Picker.Item label="g" value="g" />
-            <Picker.Item label="oz" value="oz" />
-            <Picker.Item label="lbs" value="lbs" />
-          </Picker>
-        </View>
+        <Menu
+          visible={false}
+          onDismiss={() => {}}
+          anchor={
+            <TouchableOpacity
+              style={styles.unitPickerContainer}
+              onPress={() => {
+                // Simple unit selection without complex picker
+                const units = ['g', 'oz', 'lbs'];
+                const currentIndex = units.indexOf(unit);
+                const nextIndex = (currentIndex + 1) % units.length;
+                setUnit(units[nextIndex]);
+              }}
+            >
+              <Text style={styles.unitPickerText}>{unit}</Text>
+            </TouchableOpacity>
+          }
+        />
       </View>
       {touched[label.toLowerCase()] && error && (
         <HelperText type="error" visible={true} style={styles.errorHelperText}>
@@ -427,23 +418,6 @@ export default function AddMealScreen({ route, navigation }) {
               </HelperText>
             )}
 
-            {/* Time picker */}
-            <TouchableOpacity
-              style={styles.timePickerButton}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Text style={styles.timePickerLabel}>Time</Text>
-              <Text style={styles.timePickerValue}>{format(time, 'h:mm a')}</Text>
-            </TouchableOpacity>
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={time}
-                mode="time"
-                is24Hour={false}
-                onChange={handleTimeChange}
-              />
-            )}
           </Card.Content>
         </Card>
 
@@ -583,7 +557,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 120, // Increased to account for bottom actions
   },
   card: {
     backgroundColor: '#ffffff',
@@ -611,26 +585,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#ffffff',
-  },
-  timePickerButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 4,
-    marginTop: 12,
-  },
-  timePickerLabel: {
-    fontSize: 16,
-    color: '#666666',
-  },
-  timePickerValue: {
-    fontSize: 16,
-    color: '#333333',
-    fontWeight: '600',
+    minHeight: 56,
   },
   macrosHeader: {
     flexDirection: 'row',
@@ -641,9 +596,12 @@ const styles = StyleSheet.create({
   unitButtonsContainer: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
   unitQuickButton: {
     borderColor: '#4CAF50',
+    minWidth: 60,
+    height: 36,
   },
   unitQuickButtonLabel: {
     fontSize: 11,
@@ -663,22 +621,28 @@ const styles = StyleSheet.create({
   },
   macroInputRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 12,
   },
   macroValueInput: {
-    flex: 2,
+    flex: 1,
     backgroundColor: '#ffffff',
+    minHeight: 56,
   },
   unitPickerContainer: {
-    flex: 1,
+    width: 80,
+    height: 56,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 4,
     backgroundColor: '#ffffff',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  unitPicker: {
-    height: 40,
+  unitPickerText: {
+    fontSize: 16,
+    color: '#333333',
+    fontWeight: '600',
   },
   errorHelperText: {
     fontSize: 11,
@@ -740,6 +704,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     gap: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16, // Account for safe area
   },
   cancelButton: {
     flex: 1,

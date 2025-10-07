@@ -24,14 +24,21 @@ export default function NutritionCalendarScreen({ navigation }) {
   // Load meal dates and selected day's totals
   useFocusEffect(
     React.useCallback(() => {
-      // Reset to today's date when screen comes into focus
-      const today = getTodayDateString();
-      if (selectedDate !== today) {
+      // Only reset to today's date if no date is selected
+      if (!selectedDate) {
+        const today = getTodayDateString();
         setSelectedDate(today);
       }
       loadData();
-    }, [selectedDate])
+    }, []) // Remove selectedDate dependency to prevent reset when navigating back
   );
+
+  // Load data when selected date changes
+  useEffect(() => {
+    if (selectedDate) {
+      loadDataForDate(selectedDate);
+    }
+  }, [selectedDate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -40,13 +47,15 @@ export default function NutritionCalendarScreen({ navigation }) {
       const dates = await getMealDates();
       setMealDates(dates);
 
-      // Load daily totals for selected date
-      const totals = await getDailyTotals(selectedDate);
-      setDailyTotals(totals);
-
       // Load calorie goal
       const goal = await getCalorieGoal();
       setCalorieGoal(goal);
+
+      // Load daily totals for selected date (if we have one)
+      if (selectedDate) {
+        const totals = await getDailyTotals(selectedDate);
+        setDailyTotals(totals);
+      }
     } catch (error) {
       console.error('Error loading nutrition data:', error);
     } finally {
@@ -56,12 +65,32 @@ export default function NutritionCalendarScreen({ navigation }) {
 
   const handleDateSelect = (dateString) => {
     setSelectedDate(dateString);
-    // Immediately navigate to NutritionDayScreen when a date is tapped
-    navigation.navigate('NutritionDay', { date: dateString });
+    // Load data for the new selected date
+    loadDataForDate(dateString);
+  };
+
+  const loadDataForDate = async (dateString) => {
+    try {
+      // Load daily totals for the selected date
+      const totals = await getDailyTotals(dateString);
+      setDailyTotals(totals);
+      
+      // Also refresh meal dates to show updated marked dates
+      const dates = await getMealDates();
+      setMealDates(dates);
+    } catch (error) {
+      console.error('Error loading nutrition data for date:', error);
+    }
   };
 
   const handleAddMeal = () => {
-    navigation.navigate('AddMeal', { date: selectedDate });
+    navigation.navigate('AddMeal', { 
+      date: selectedDate,
+      onMealAdded: () => {
+        // Refresh data when meal is added
+        loadDataForDate(selectedDate);
+      }
+    });
   };
 
   const handleViewDay = () => {
@@ -71,6 +100,10 @@ export default function NutritionCalendarScreen({ navigation }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
+    // Also refresh the current selected date's data
+    if (selectedDate) {
+      await loadDataForDate(selectedDate);
+    }
     setRefreshing(false);
   };
 
@@ -89,6 +122,11 @@ export default function NutritionCalendarScreen({ navigation }) {
       {/* Title Header */}
       <View style={styles.header}>
         <Title style={styles.headerTitle}>Nutrition Calendar</Title>
+        {calorieGoal && (
+          <View style={styles.goalContainer}>
+            <Text style={styles.goalValue}>{calorieGoal.finalGoal} calories</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView 
@@ -139,14 +177,7 @@ export default function NutritionCalendarScreen({ navigation }) {
                     <Text style={styles.calorieNumber}>
                       {dailyTotals.calories}
                     </Text>
-                    <Text style={styles.calorieLabel}>Consumed</Text>
-                  </View>
-                  <Text style={styles.calorieSeparator}>of</Text>
-                  <View style={styles.calorieBlock}>
-                    <Text style={styles.calorieNumber}>
-                      {calorieGoal?.finalGoal || 2000}
-                    </Text>
-                    <Text style={styles.calorieLabel}>Goal</Text>
+                    <Text style={styles.calorieLabel}>Calories Consumed</Text>
                   </View>
                 </View>
 
@@ -198,6 +229,24 @@ export default function NutritionCalendarScreen({ navigation }) {
                 <Text style={styles.noMealsText}>
                   No meals logged for this day
                 </Text>
+                {!calorieGoal && (
+                  <View style={styles.noGoalContainer}>
+                    <Text style={styles.noGoalText}>
+                      No calorie goal set
+                    </Text>
+                    <Text style={styles.noGoalSubtext}>
+                      Set your calorie goal in Profile to track progress
+                    </Text>
+                    <Button
+                      mode="outlined"
+                      onPress={() => navigation.navigate('Profile')}
+                      style={styles.setGoalButton}
+                      labelStyle={styles.setGoalButtonLabel}
+                    >
+                      Set Goal
+                    </Button>
+                  </View>
+                )}
                 <Button
                   mode="contained"
                   onPress={handleAddMeal}
@@ -280,7 +329,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   calorieRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -378,6 +426,49 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#4CAF50',
+  },
+  // Goal display styles
+  goalContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#E8F5E8',
+    borderRadius: 16,
+    alignSelf: 'center',
+  },
+  goalValue: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  noGoalContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffeaa7',
+  },
+  noGoalText: {
+    fontSize: 16,
+    color: '#856404',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  noGoalSubtext: {
+    fontSize: 12,
+    color: '#856404',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  setGoalButton: {
+    borderColor: '#856404',
+  },
+  setGoalButtonLabel: {
+    color: '#856404',
+    fontSize: 12,
   },
 });
 

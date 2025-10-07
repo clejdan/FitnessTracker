@@ -38,6 +38,7 @@ import { useFormValidation, ValidationRules } from '../../utils/formValidation';
 import { WorkoutDefaults, FormPersistence, ExerciseSuggestions } from '../../utils/smartDefaults';
 import { useAccessibility, useAccessibilityAnnouncements, useAccessibleForm } from '../../hooks/useAccessibility';
 import { AccessibilityManager, AccessibilityPatterns } from '../../utils/accessibility';
+import { useMicroInteraction, MicroInteractions, AnimationUtils } from '../../utils/animations';
 
 export default function AddWorkoutScreen({ route, navigation }) {
   const { date, editMode = false, workoutData = null } = route?.params || {};
@@ -88,6 +89,9 @@ export default function AddWorkoutScreen({ route, navigation }) {
     { name: 'rir', label: 'RIR', required: true },
     { name: 'weight', label: 'Weight', required: false },
   ]);
+
+  // Animation hooks
+  const { press: buttonPress, pressStyle: buttonPressStyle } = useMicroInteraction();
 
   // Load smart defaults and suggestions
   useEffect(() => {
@@ -653,6 +657,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
           mode="contained"
           onPress={() => {
             hapticButtonPress();
+            buttonPress().start();
             handleSave();
           }}
           onFocus={() => {
@@ -660,7 +665,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
               announce('Save workout button. Double tap to save your exercise.');
             }
           }}
-          style={styles.saveButton}
+          style={[styles.saveButton, buttonPressStyle]}
           labelStyle={styles.saveButtonLabel}
           loading={saving}
           disabled={saving}

@@ -19,7 +19,6 @@ import {
   DataTable,
   ActivityIndicator,
 } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
@@ -458,7 +457,7 @@ export default function WorkoutDayScreen({ route, navigation }) {
               <Button onPress={() => setDeleteDialogVisible(false)}>
                 Cancel
               </Button>
-              <Button onPress={() => {}} textColor="#ff5252">
+              <Button onPress={confirmDelete} textColor="#ff5252">
                 Delete
               </Button>
             </Dialog.Actions>

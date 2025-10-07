@@ -2,6 +2,8 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AnimationConfigs } from '../utils/animations';
+import AnimatedTabBar from '../components/AnimatedTabBar';
 
 // Workout Screens
 import WorkoutCalendarScreen from '../screens/workout/WorkoutCalendarScreen';
@@ -34,6 +36,24 @@ function WorkoutStackNavigator() {
         headerTintColor: '#00ff88',
         headerTitleStyle: {
           fontWeight: 'bold',
+        },
+        cardStyleInterpolator: ({ current, layouts }) => {
+          return {
+            cardStyle: {
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          };
+        },
+        transitionSpec: {
+          open: AnimationConfigs.NORMAL,
+          close: AnimationConfigs.FAST,
         },
       }}
     >
@@ -68,6 +88,24 @@ function NutritionStackNavigator() {
         headerTitleStyle: {
           fontWeight: 'bold',
         },
+        cardStyleInterpolator: ({ current, layouts }) => {
+          return {
+            cardStyle: {
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          };
+        },
+        transitionSpec: {
+          open: AnimationConfigs.NORMAL,
+          close: AnimationConfigs.FAST,
+        },
       }}
     >
       <NutritionStack.Screen 
@@ -100,6 +138,24 @@ function ProfileStackNavigator() {
         headerTintColor: '#2196F3',
         headerTitleStyle: {
           fontWeight: 'bold',
+        },
+        cardStyleInterpolator: ({ current, layouts }) => {
+          return {
+            cardStyle: {
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          };
+        },
+        transitionSpec: {
+          open: AnimationConfigs.NORMAL,
+          close: AnimationConfigs.FAST,
         },
       }}
     >
@@ -147,7 +203,23 @@ export default function AppNavigator() {
         tabBarStyle: {
           backgroundColor: route.name === 'Workout' ? '#1a1a1a' : '#ffffff',
           borderTopColor: route.name === 'Workout' ? '#2a2a2a' : '#e0e0e0',
+          elevation: 8,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
+        },
+        animationEnabled: true,
+        lazy: true,
+        tabBar: (props) => <AnimatedTabBar {...props} />,
       })}
     >
       <Tab.Screen 

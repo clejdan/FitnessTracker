@@ -6,6 +6,7 @@ import Calendar from '../../components/Calendar';
 import { getWorkout, getWorkoutDates } from '../../services/storageService';
 import { format } from 'date-fns';
 import { hapticDateSelect, hapticButtonPress, hapticFAB } from '../../utils/haptics';
+import { showErrorToast } from '../../utils/toast';
 
 // Helper to get today's date without timezone issues
 const getTodayDateString = () => {
@@ -21,7 +22,6 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [fromCache, setFromCache] = useState(false);
 
   // Load workout dates when screen comes into focus
   useFocusEffect(
@@ -62,14 +62,12 @@ export default function WorkoutCalendarScreen({ navigation }) {
     }
 
     try {
-      // Load workout dates with caching
-      const datesResult = await CachedDataFetcher.getWorkoutDates();
-      setWorkoutDates(datesResult.data || []);
-      setFromCache(datesResult.fromCache);
+      // Load workout dates
+      const dates = await getWorkoutDates();
+      setWorkoutDates(dates || []);
 
-      // Load workout for selected date with caching
-      const workoutResult = await CachedDataFetcher.getWorkouts(selectedDate);
-      const workoutData = workoutResult.data;
+      // Load workout for selected date
+      const workoutData = await getWorkout(selectedDate);
       
       if (workoutData && workoutData.length > 0) {
         const allExercises = workoutData.flatMap(w => w.exercises || []);
@@ -82,10 +80,6 @@ export default function WorkoutCalendarScreen({ navigation }) {
         setTodayWorkout(null);
       }
 
-      // If data came from cache, refresh in background
-      if (datesResult.fromCache || workoutResult.fromCache) {
-        setTimeout(() => loadData(true), 100);
-      }
     } catch (error) {
       console.error('Error loading workout data:', error);
       showErrorToast('Failed to load workout data. Please try again.');
@@ -121,7 +115,8 @@ export default function WorkoutCalendarScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    hapticButtonPress();
+    await loadData(true);
     setRefreshing(false);
   };
 
@@ -147,12 +142,6 @@ export default function WorkoutCalendarScreen({ navigation }) {
       {/* Title Header */}
       <View style={styles.header}>
         <Title style={styles.headerTitle}>Workout Calendar</Title>
-        {fromCache && (
-          <View style={styles.cacheIndicator}>
-            <ActivityIndicator size="small" color="#999999" />
-            <Text style={styles.cacheText}>Syncing...</Text>
-          </View>
-        )}
       </View>
 
       <ScrollView 
@@ -160,9 +149,11 @@ export default function WorkoutCalendarScreen({ navigation }) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadData(true)}
+            onRefresh={onRefresh}
             tintColor="#00ff88"
             colors={['#00ff88']}
+            title="Pull to refresh"
+            titleColor="#00ff88"
           />
         }
       >
@@ -375,28 +366,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
-  },
-  cacheIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  cacheText: {
-    color: '#999999',
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    color: '#999999',
-    fontSize: 16,
-    marginTop: 16,
-    textAlign: 'center',
   },
 });
 
