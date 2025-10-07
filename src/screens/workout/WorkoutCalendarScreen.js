@@ -23,6 +23,11 @@ export default function WorkoutCalendarScreen({ navigation }) {
   // Load workout dates and selected day's workout
   useFocusEffect(
     React.useCallback(() => {
+      // Reset to today's date when screen comes into focus
+      const today = getTodayDateString();
+      if (selectedDate !== today) {
+        setSelectedDate(today);
+      }
       loadData();
     }, [selectedDate])
   );
@@ -35,8 +40,18 @@ export default function WorkoutCalendarScreen({ navigation }) {
       setWorkoutDates(dates);
 
       // Load workout for selected date
-      const workout = await getWorkout(selectedDate);
-      setTodayWorkout(workout);
+      const workoutData = await getWorkout(selectedDate);
+      // getWorkout returns an array, merge all exercises into one workout object
+      if (workoutData && workoutData.length > 0) {
+        const allExercises = workoutData.flatMap(w => w.exercises || []);
+        const mergedWorkout = {
+          ...workoutData[0],
+          exercises: allExercises,
+        };
+        setTodayWorkout(mergedWorkout);
+      } else {
+        setTodayWorkout(null);
+      }
     } catch (error) {
       console.error('Error loading workout data:', error);
     } finally {
@@ -103,7 +118,11 @@ export default function WorkoutCalendarScreen({ navigation }) {
         <Card style={styles.summaryCard}>
           <Card.Content>
             <Title style={styles.summaryTitle}>
-              {format(new Date(selectedDate), 'EEEE, MMMM d')}
+              {(() => {
+                const [year, month, day] = selectedDate.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                return format(localDate, 'EEEE, MMMM d');
+              })()}
             </Title>
             
             {loading ? (

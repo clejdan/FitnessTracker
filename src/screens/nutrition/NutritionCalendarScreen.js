@@ -24,6 +24,11 @@ export default function NutritionCalendarScreen({ navigation }) {
   // Load meal dates and selected day's totals
   useFocusEffect(
     React.useCallback(() => {
+      // Reset to today's date when screen comes into focus
+      const today = getTodayDateString();
+      if (selectedDate !== today) {
+        setSelectedDate(today);
+      }
       loadData();
     }, [selectedDate])
   );
@@ -118,7 +123,11 @@ export default function NutritionCalendarScreen({ navigation }) {
         <Card style={styles.summaryCard}>
           <Card.Content>
             <Title style={styles.summaryTitle}>
-              {format(new Date(selectedDate), 'EEEE, MMMM d')}
+              {(() => {
+                const [year, month, day] = selectedDate.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                return format(localDate, 'EEEE, MMMM d');
+              })()}
             </Title>
             
             {loading ? (

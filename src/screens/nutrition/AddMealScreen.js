@@ -228,13 +228,13 @@ export default function AddMealScreen({ route, navigation }) {
         await updateMeal(date, mealData.id, meal);
         console.log('Meal updated:', meal);
         showSuccessToast(`${mealName} updated successfully!`, () => {
-          navigation.navigate('NutritionDay', { date });
+          navigation.goBack();
         });
       } else {
         await saveMeal(date, meal);
         console.log('Meal saved:', meal);
         showSuccessToast(`${mealName} saved successfully!`, () => {
-          navigation.navigate('NutritionDay', { date });
+          navigation.goBack();
         });
       }
     } catch (error) {

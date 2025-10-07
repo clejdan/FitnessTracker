@@ -39,8 +39,18 @@ export default function Calendar({
   selectedDate, 
   theme = 'light' 
 }) {
+  // Helper to parse date string safely in local timezone
+  const parseDateString = (dateStr) => {
+    if (!dateStr) return getTodayDate();
+    if (typeof dateStr !== 'string') return dateStr;
+    
+    // Parse yyyy-MM-dd format in local timezone
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0);
+  };
+
   const [selectedDateObj, setSelectedDateObj] = useState(
-    selectedDate ? (typeof selectedDate === 'string' ? parseISO(selectedDate) : selectedDate) : getTodayDate()
+    selectedDate ? parseDateString(selectedDate) : getTodayDate()
   );
   const [modalVisible, setModalVisible] = useState(false);
   const [tempDate, setTempDate] = useState(selectedDateObj);
@@ -48,7 +58,7 @@ export default function Calendar({
   // Update selected date when prop changes
   useEffect(() => {
     if (selectedDate) {
-      const dateObj = typeof selectedDate === 'string' ? parseISO(selectedDate) : selectedDate;
+      const dateObj = parseDateString(selectedDate);
       setSelectedDateObj(dateObj);
       setTempDate(dateObj);
     }

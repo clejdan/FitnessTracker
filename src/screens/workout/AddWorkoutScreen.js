@@ -146,13 +146,13 @@ export default function AddWorkoutScreen({ route, navigation }) {
         await updateWorkout(date, workoutData.id, workout);
         console.log('Workout updated:', workout);
         showSuccessToast(`${exerciseName} updated successfully!`, () => {
-          navigation.navigate('WorkoutDay', { date });
+          navigation.goBack();
         });
       } else {
         await saveWorkout(date, workout);
         console.log('Workout saved:', workout);
         showSuccessToast(`${exerciseName} saved successfully!`, () => {
-          navigation.navigate('WorkoutDay', { date });
+          navigation.goBack();
         });
       }
     } catch (error) {
@@ -247,12 +247,15 @@ export default function AddWorkoutScreen({ route, navigation }) {
                   {/* Reps Picker */}
                   <View style={styles.pickerGroup}>
                     <Text style={styles.inputLabel}>Reps</Text>
-                    <View style={styles.pickerContainer}>
+                    <TouchableOpacity 
+                      activeOpacity={1}
+                      style={styles.pickerContainerEnhanced}
+                    >
                       <Picker
                         selectedValue={set.reps}
                         onValueChange={(value) => updateSet(index, 'reps', value)}
-                        style={styles.picker}
-                        itemStyle={styles.pickerItem}
+                        style={styles.pickerEnhanced}
+                        itemStyle={styles.pickerItemEnhanced}
                         dropdownIconColor="#00ff88"
                       >
                         {Array.from({ length: 50 }, (_, i) => i + 1).map(num => (
@@ -264,18 +267,21 @@ export default function AddWorkoutScreen({ route, navigation }) {
                           />
                         ))}
                       </Picker>
-                    </View>
+                    </TouchableOpacity>
                   </View>
 
                   {/* RIR Picker */}
                   <View style={styles.pickerGroup}>
                     <Text style={styles.inputLabel}>RIR</Text>
-                    <View style={styles.pickerContainer}>
+                    <TouchableOpacity 
+                      activeOpacity={1}
+                      style={styles.pickerContainerEnhanced}
+                    >
                       <Picker
                         selectedValue={set.rir}
                         onValueChange={(value) => updateSet(index, 'rir', value)}
-                        style={styles.picker}
-                        itemStyle={styles.pickerItem}
+                        style={styles.pickerEnhanced}
+                        itemStyle={styles.pickerItemEnhanced}
                         dropdownIconColor="#00ff88"
                       >
                         {Array.from({ length: 16 }, (_, i) => i).map(num => (
@@ -287,8 +293,7 @@ export default function AddWorkoutScreen({ route, navigation }) {
                           />
                         ))}
                       </Picker>
-                    </View>
-                    <Text style={styles.unitSubtext}>RIR</Text>
+                    </TouchableOpacity>
                   </View>
 
                   {/* Weight Input with Unit Toggle */}
@@ -543,16 +548,19 @@ const styles = StyleSheet.create({
   },
   setInputsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
+    alignItems: 'flex-start',
   },
   pickerGroup: {
     flex: 1,
     alignItems: 'center',
+    minWidth: 100,
+    maxWidth: 110,
   },
   inputLabel: {
     color: '#cccccc',
     fontSize: 12,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   pickerContainer: {
     backgroundColor: '#2a2a2a',
@@ -572,13 +580,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     height: 120,
   },
+  // Enhanced picker styles for better UX
+  pickerContainerEnhanced: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#00ff88',
+    overflow: 'visible',
+    width: '100%',
+    minWidth: 90,
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    paddingHorizontal: 8,
+  },
+  pickerEnhanced: {
+    color: '#ffffff',
+    height: 150,
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  pickerItemEnhanced: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '600',
+    height: 150,
+    textAlign: 'center',
+  },
   unitSubtext: {
     color: '#999999',
     fontSize: 10,
     marginTop: 2,
   },
   weightGroup: {
-    flex: 1.5,
+    flex: 2,
+    minWidth: 120,
   },
   weightInputContainer: {
     gap: 4,

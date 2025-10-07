@@ -32,6 +32,20 @@ const storageOperation = async (operation, key, data = null) => {
 // Helper function to format date consistently
 const formatDate = (date) => {
   try {
+    // If date is already a Date object, use it directly
+    if (date instanceof Date) {
+      return format(date, 'yyyy-MM-dd');
+    }
+    
+    // If it's a string in yyyy-MM-dd format, parse it as local time to avoid timezone issues
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number);
+      // Create date in local timezone (month is 0-indexed)
+      const localDate = new Date(year, month - 1, day, 12, 0, 0);
+      return format(localDate, 'yyyy-MM-dd');
+    }
+    
+    // For other formats, try to parse
     return format(new Date(date), 'yyyy-MM-dd');
   } catch (error) {
     console.error('Date formatting error:', error);
@@ -50,22 +64,31 @@ const formatDate = (date) => {
 export const saveWorkout = async (date, workoutData) => {
   try {
     const formattedDate = formatDate(date);
-    const workoutId = uuid.v4();
     
-    const workout = {
-      id: workoutId,
-      date: formattedDate,
-      exercises: workoutData.exercises || [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
     // Get existing workouts
     const existingWorkouts = await storageOperation('get', STORAGE_KEYS.WORKOUTS) || {};
+    const existingWorkoutsForDate = existingWorkouts[formattedDate] || [];
     
-    // Add or update workout for the date
-    existingWorkouts[formattedDate] = existingWorkouts[formattedDate] || [];
-    existingWorkouts[formattedDate].push(workout);
+    // Check if there's already a workout for this date
+    if (existingWorkoutsForDate.length > 0) {
+      // Add exercise to existing workout
+      const existingWorkout = existingWorkoutsForDate[0];
+      existingWorkout.exercises = [...existingWorkout.exercises, ...workoutData.exercises];
+      existingWorkout.updatedAt = new Date().toISOString();
+      
+      existingWorkouts[formattedDate] = [existingWorkout]; // Keep only one workout per date
+    } else {
+      // Create new workout
+      const workoutId = uuid.v4();
+      const workout = {
+        id: workoutId,
+        date: formattedDate,
+        exercises: workoutData.exercises || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      existingWorkouts[formattedDate] = [workout];
+    }
     
     await storageOperation('set', STORAGE_KEYS.WORKOUTS, existingWorkouts);
     console.log(`Workout saved for ${formattedDate}`);

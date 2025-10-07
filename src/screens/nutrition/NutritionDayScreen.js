@@ -81,12 +81,18 @@ export default function NutritionDayScreen({ route, navigation }) {
   };
 
   const navigateToPreviousDay = () => {
-    const previousDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+    // Parse date in local timezone to avoid UTC offset issues
+    const [year, month, day] = date.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day, 12, 0, 0);
+    const previousDate = format(subDays(localDate, 1), 'yyyy-MM-dd');
     navigation.push('NutritionDay', { date: previousDate });
   };
 
   const navigateToNextDay = () => {
-    const nextDate = format(addDays(parseISO(date), 1), 'yyyy-MM-dd');
+    // Parse date in local timezone to avoid UTC offset issues
+    const [year, month, day] = date.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day, 12, 0, 0);
+    const nextDate = format(addDays(localDate, 1), 'yyyy-MM-dd');
     navigation.push('NutritionDay', { date: nextDate });
   };
 
@@ -132,7 +138,10 @@ export default function NutritionDayScreen({ route, navigation }) {
 
   const getFormattedDate = () => {
     try {
-      return format(parseISO(date), 'EEEE, MMMM d, yyyy');
+      // Parse date in local timezone to avoid UTC offset issues
+      const [year, month, day] = date.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day, 12, 0, 0);
+      return format(localDate, 'EEEE, MMMM d, yyyy');
     } catch {
       return date;
     }

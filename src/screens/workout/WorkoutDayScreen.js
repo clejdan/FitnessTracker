@@ -5,6 +5,7 @@ import {
   ScrollView, 
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
 import { 
   Text, 
@@ -19,9 +20,10 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { Swipeable } from 'react-native-gesture-handler';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
-import { getWorkout, deleteWorkout } from '../../services/storageService';
+import { getWorkout, deleteWorkout, updateWorkout } from '../../services/storageService';
 import { showSuccessToast, showErrorToast } from '../../utils/toast';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -43,8 +45,20 @@ export default function WorkoutDayScreen({ route, navigation }) {
     setLoading(true);
     try {
       const workoutData = await getWorkout(date);
-      setWorkout(workoutData);
-      console.log('Loaded workout for', date, ':', workoutData);
+      // getWorkout returns an array, but we need a single workout object with all exercises
+      if (workoutData && workoutData.length > 0) {
+        // Merge all exercises from multiple workouts into one
+        const allExercises = workoutData.flatMap(w => w.exercises || []);
+        const mergedWorkout = {
+          ...workoutData[0],
+          exercises: allExercises,
+        };
+        setWorkout(mergedWorkout);
+        console.log('Loaded workout for', date, ':', mergedWorkout);
+      } else {
+        setWorkout(null);
+        console.log('No workout found for', date);
+      }
     } catch (error) {
       console.error('Error loading workout:', error);
       showErrorToast('Failed to load workout data. Please try again.');
@@ -65,12 +79,18 @@ export default function WorkoutDayScreen({ route, navigation }) {
   };
 
   const navigateToPreviousDay = () => {
-    const previousDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+    // Parse date in local timezone to avoid UTC offset issues
+    const [year, month, day] = date.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day, 12, 0, 0);
+    const previousDate = format(subDays(localDate, 1), 'yyyy-MM-dd');
     navigation.push('WorkoutDay', { date: previousDate });
   };
 
   const navigateToNextDay = () => {
-    const nextDate = format(addDays(parseISO(date), 1), 'yyyy-MM-dd');
+    // Parse date in local timezone to avoid UTC offset issues
+    const [year, month, day] = date.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day, 12, 0, 0);
+    const nextDate = format(addDays(localDate, 1), 'yyyy-MM-dd');
     navigation.push('WorkoutDay', { date: nextDate });
   };
 
@@ -93,24 +113,19 @@ export default function WorkoutDayScreen({ route, navigation }) {
     });
   };
 
-  const handleDeleteExercise = (exerciseId) => {
-    setExerciseToDelete(exerciseId);
-    setDeleteDialogVisible(true);
-  };
-
-  const confirmDelete = async () => {
+  const handleDeleteExercise = async (exerciseId) => {
     try {
-      if (exerciseToDelete && workout) {
+      if (workout) {
         // Filter out the exercise to delete
         const updatedExercises = workout.exercises.filter(
-          ex => ex.exerciseId !== exerciseToDelete
+          ex => ex.exerciseId !== exerciseId
         );
 
         if (updatedExercises.length === 0) {
           // If no exercises left, delete the entire workout
           await deleteWorkout(date, workout.id);
           setWorkout(null);
-          showSuccessToast('Workout deleted successfully', () => navigation.goBack());
+          showSuccessToast('Workout deleted successfully');
         } else {
           // Otherwise update the workout with remaining exercises
           const updatedWorkout = {
@@ -118,8 +133,8 @@ export default function WorkoutDayScreen({ route, navigation }) {
             exercises: updatedExercises,
             updatedAt: new Date().toISOString(),
           };
-          // Note: You'll need to implement updateWorkout in storage service
-          // For now, we'll just update local state
+          
+          await updateWorkout(date, workout.id, updatedWorkout);
           setWorkout(updatedWorkout);
           showSuccessToast('Exercise deleted successfully');
         }
@@ -127,6 +142,14 @@ export default function WorkoutDayScreen({ route, navigation }) {
     } catch (error) {
       console.error('Error deleting exercise:', error);
       showErrorToast('Failed to delete exercise. Please try again.');
+    }
+  };
+
+  const confirmDelete = async () => {
+    try {
+      if (exerciseToDelete && workout) {
+        await handleDeleteExercise(exerciseToDelete);
+      }
     } finally {
       setDeleteDialogVisible(false);
       setExerciseToDelete(null);
@@ -158,7 +181,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
 
   const getFormattedDate = () => {
     try {
-      return format(parseISO(date), 'EEEE, MMMM d, yyyy');
+      // Parse date in local timezone to avoid UTC offset issues
+      const [year, month, day] = date.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day, 12, 0, 0);
+      return format(localDate, 'EEEE, MMMM d, yyyy');
     } catch {
       return date;
     }
@@ -183,31 +209,66 @@ export default function WorkoutDayScreen({ route, navigation }) {
     </View>
   );
 
+  const renderRightActions = (progress, dragX, exerciseId) => {
+    const trans = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [0, 100],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <TouchableOpacity
+        style={styles.deleteAction}
+        onPress={() => handleDeleteExercise(exerciseId)}
+      >
+        <Animated.View
+          style={[
+            styles.deleteActionContent,
+            {
+              transform: [{ translateX: trans }],
+            },
+          ]}
+        >
+          <Ionicons name="trash" size={28} color="#ffffff" />
+          <Text style={styles.deleteActionText}>Delete</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderExerciseCard = (exercise) => {
     const isExpanded = expandedExercises[exercise.exerciseId];
     const totalSets = exercise.sets?.length || 0;
 
     return (
-      <Card key={exercise.exerciseId} style={styles.exerciseCard}>
-        <TouchableOpacity onPress={() => toggleExercise(exercise.exerciseId)}>
-          <View style={styles.exerciseHeader}>
-            <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>{exercise.name}</Text>
-              <Text style={styles.setsCount}>{totalSets} sets</Text>
+      <Swipeable
+        key={exercise.exerciseId}
+        renderRightActions={(progress, dragX) =>
+          renderRightActions(progress, dragX, exercise.exerciseId)
+        }
+        overshootRight={false}
+        friction={2}
+      >
+        <Card style={styles.exerciseCard}>
+          <TouchableOpacity onPress={() => toggleExercise(exercise.exerciseId)}>
+            <View style={styles.exerciseHeader}>
+              <View style={styles.exerciseInfo}>
+                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                <Text style={styles.setsCount}>{totalSets} sets</Text>
+              </View>
+              <View style={styles.exerciseActions}>
+                <IconButton
+                  icon="chevron-down"
+                  iconColor="#00ff88"
+                  size={24}
+                  style={{
+                    transform: [{ rotate: isExpanded ? '180deg' : '0deg' }]
+                  }}
+                  onPress={() => toggleExercise(exercise.exerciseId)}
+                />
+              </View>
             </View>
-            <View style={styles.exerciseActions}>
-              <IconButton
-                icon="chevron-down"
-                iconColor="#00ff88"
-                size={24}
-                style={{
-                  transform: [{ rotate: isExpanded ? '180deg' : '0deg' }]
-                }}
-                onPress={() => toggleExercise(exercise.exerciseId)}
-              />
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
         {isExpanded && (
           <Card.Content style={styles.exerciseContent}>
@@ -246,21 +307,10 @@ export default function WorkoutDayScreen({ route, navigation }) {
                 </DataTable.Row>
               ))}
             </DataTable>
-
-            <View style={styles.exerciseButtonsContainer}>
-              <Button
-                mode="outlined"
-                onPress={() => handleDeleteExercise(exercise.exerciseId)}
-                style={styles.deleteExerciseButton}
-                labelStyle={styles.deleteExerciseButtonLabel}
-                icon="trash-can-outline"
-              >
-                Delete Exercise
-              </Button>
-            </View>
           </Card.Content>
         )}
-      </Card>
+        </Card>
+      </Swipeable>
     );
   };
 
@@ -591,5 +641,25 @@ const styles = StyleSheet.create({
   },
   dialogText: {
     color: '#cccccc',
+  },
+  // Swipe delete styles
+  deleteAction: {
+    backgroundColor: '#ff5252',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingRight: 20,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  deleteActionContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 80,
+  },
+  deleteActionText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
