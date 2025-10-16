@@ -24,6 +24,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getMeals, deleteMeal, getDailyTotals, getCalorieGoal } from '../../services/storageService';
 import { showSuccessToast, showErrorToast, showConfirmDialog } from '../../utils/toast';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import MacroPieChart from '../../components/MacroPieChart';
 
 export default function NutritionDayScreen({ route, navigation }) {
   const { date } = route.params;
@@ -415,6 +416,9 @@ export default function NutritionDayScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Calorie Progress Section */}
         {renderCalorieProgress()}
+
+        {/* Macro Pie Chart */}
+        <MacroPieChart date={date} showTargets={true} />
 
         {/* Macro Summary */}
         {meals.length > 0 && renderMacroSummary()}

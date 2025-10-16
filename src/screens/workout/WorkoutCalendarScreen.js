@@ -4,9 +4,11 @@ import { Text, Card, Title, Button, FAB, ActivityIndicator } from 'react-native-
 import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
 import { getWorkout, getWorkoutDates } from '../../services/storageService';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { hapticDateSelect, hapticButtonPress, hapticFAB } from '../../utils/haptics';
 import { showErrorToast } from '../../utils/toast';
+import SearchFilter from '../../components/SearchFilter';
+import WeekView from '../../components/WeekView';
 
 // Helper to get today's date without timezone issues
 const getTodayDateString = () => {
@@ -22,6 +24,8 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [showSearchFilter, setShowSearchFilter] = useState(false);
+  const [searchFilters, setSearchFilters] = useState({});
 
   // Load workout dates when screen comes into focus
   useFocusEffect(
@@ -108,6 +112,12 @@ export default function WorkoutCalendarScreen({ navigation }) {
     navigation.navigate('AddWorkout', { date: selectedDate });
   };
 
+  const handleSearchApply = (filters) => {
+    setSearchFilters(filters);
+    // TODO: Implement search functionality
+    console.log('Applied search filters:', filters);
+  };
+
   const handleViewWorkout = () => {
     hapticButtonPress();
     navigation.navigate('WorkoutDay', { date: selectedDate, workout: todayWorkout });
@@ -141,7 +151,19 @@ export default function WorkoutCalendarScreen({ navigation }) {
     <View style={styles.container}>
       {/* Title Header */}
       <View style={styles.header}>
-        <Title style={styles.headerTitle}>Workout Calendar</Title>
+        <View style={styles.headerTop}>
+          <Title style={styles.headerTitle}>Workout Calendar</Title>
+          <Button
+            mode="outlined"
+            onPress={() => setShowSearchFilter(true)}
+            style={styles.searchButton}
+            labelStyle={styles.searchButtonLabel}
+            icon="magnify"
+            compact
+          >
+            Search
+          </Button>
+        </View>
       </View>
 
       <ScrollView 
@@ -157,6 +179,14 @@ export default function WorkoutCalendarScreen({ navigation }) {
           />
         }
       >
+        {/* Week View */}
+        <WeekView
+          initialDate={parseISO(selectedDate)}
+          type="workout"
+          onDateSelect={(date) => handleDateSelect(format(date, 'yyyy-MM-dd'))}
+          showNavigation={true}
+        />
+
         {/* Calendar Component */}
         <View style={styles.calendarContainer}>
           {loading && workoutDates.length === 0 ? (
@@ -245,6 +275,15 @@ export default function WorkoutCalendarScreen({ navigation }) {
           handleAddWorkout();
         }}
       />
+
+      {/* Search Filter Modal */}
+      <SearchFilter
+        visible={showSearchFilter}
+        onClose={() => setShowSearchFilter(false)}
+        onApply={handleSearchApply}
+        type="workout"
+        initialFilters={searchFilters}
+      />
     </View>
   );
 }
@@ -262,10 +301,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   headerTitle: {
     color: '#ffffff',
     fontSize: 28,
     fontWeight: 'bold',
+    flex: 1,
+  },
+  searchButton: {
+    borderColor: '#00ff88',
+  },
+  searchButtonLabel: {
+    color: '#00ff88',
+    fontSize: 12,
   },
   scrollContent: {
     padding: 16,

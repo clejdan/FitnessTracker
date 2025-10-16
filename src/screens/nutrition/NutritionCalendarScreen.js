@@ -4,7 +4,8 @@ import { Text, Card, Title, Button, FAB, ActivityIndicator } from 'react-native-
 import { useFocusEffect } from '@react-navigation/native';
 import Calendar from '../../components/Calendar';
 import { getMeals, getMealDates, getDailyTotals, getCalorieGoal } from '../../services/storageService';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import WeekView from '../../components/WeekView';
 
 // Helper to get today's date without timezone issues
 const getTodayDateString = () => {
@@ -140,6 +141,14 @@ export default function NutritionCalendarScreen({ navigation }) {
           />
         }
       >
+        {/* Week View */}
+        <WeekView
+          initialDate={parseISO(selectedDate)}
+          type="nutrition"
+          onDateSelect={(date) => handleDateSelect(format(date, 'yyyy-MM-dd'))}
+          showNavigation={true}
+        />
+
         {/* Calendar Component */}
         <View style={styles.calendarContainer}>
           {loading && mealDates.length === 0 ? (

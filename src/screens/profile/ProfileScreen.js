@@ -15,6 +15,7 @@ import { exportAllData, getDataStats, exportToFile, importFromFile, clearAllData
 import { DataCache, NetworkManager } from '../../utils/dataCache';
 import { useAccessibility, useAccessibilityAnnouncements } from '../../hooks/useAccessibility';
 import { AccessibilityManager } from '../../utils/accessibility';
+import StreakDisplay from '../../components/StreakDisplay';
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -366,6 +367,11 @@ export default function ProfileScreen({ navigation }) {
           </Card.Content>
         </Card>
       </View>
+
+      <Divider style={styles.divider} />
+
+      {/* Streak Display Section */}
+      <StreakDisplay onRefresh={loading} />
 
       <Divider style={styles.divider} />
 
