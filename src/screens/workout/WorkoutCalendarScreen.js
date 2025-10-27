@@ -21,6 +21,7 @@ export default function WorkoutCalendarScreen({ navigation }) {
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [workoutDates, setWorkoutDates] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
+  const [filteredWorkouts, setFilteredWorkouts] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -70,6 +71,20 @@ export default function WorkoutCalendarScreen({ navigation }) {
       const dates = await getWorkoutDates();
       setWorkoutDates(dates || []);
 
+      // Load all workouts for filtering
+      const allWorkouts = {};
+      for (const date of dates || []) {
+        const workoutData = await getWorkout(date);
+        if (workoutData && workoutData.length > 0) {
+          const allExercises = workoutData.flatMap(w => w.exercises || []);
+          allWorkouts[date] = {
+            ...workoutData[0],
+            exercises: allExercises,
+          };
+        }
+      }
+      setFilteredWorkouts(allWorkouts);
+
       // Load workout for selected date
       const workoutData = await getWorkout(selectedDate);
       
@@ -114,7 +129,28 @@ export default function WorkoutCalendarScreen({ navigation }) {
 
   const handleSearchApply = (filters) => {
     setSearchFilters(filters);
-    // TODO: Implement search functionality
+    // Apply search filters to workout data
+    if (filters.searchText) {
+      // Filter workouts by exercise name
+      const filteredWorkouts = Object.entries(workouts).filter(([date, workout]) => {
+        return workout.exercises.some(exercise => 
+          exercise.name.toLowerCase().includes(filters.searchText.toLowerCase())
+        );
+      });
+      setFilteredWorkouts(Object.fromEntries(filteredWorkouts));
+    } else {
+      setFilteredWorkouts(workouts);
+    }
+    
+    // Apply date range filter
+    if (filters.startDate && filters.endDate) {
+      const filteredByDate = Object.entries(filteredWorkouts || workouts).filter(([date]) => {
+        const workoutDate = new Date(date);
+        return workoutDate >= filters.startDate && workoutDate <= filters.endDate;
+      });
+      setFilteredWorkouts(Object.fromEntries(filteredByDate));
+    }
+    
     console.log('Applied search filters:', filters);
   };
 
